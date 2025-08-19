@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  /* Primary color palette - Orange */
+  --color-primary-50: oklch(0.971 0.020 70.67);
+  --color-primary-100: oklch(0.943 0.040 72.39);
+  --color-primary-200: oklch(0.885 0.080 74.68);
+  --color-primary-300: oklch(0.808 0.130 76.29);
+  --color-primary-400: oklch(0.701 0.175 68.87);
+  --color-primary-500: oklch(0.639 0.180 65.69);
+  --color-primary-600: oklch(0.569 0.175 58.29);
+  --color-primary-700: oklch(0.481 0.157 55.23);
+  --color-primary-800: oklch(0.417 0.130 52.58);
+  --color-primary-900: oklch(0.367 0.109 49.72);
+  --color-primary-950: oklch(0.238 0.070 43.84);
+
+  /* Secondary color palette - Slate/Gray */
+  --color-secondary-50: oklch(0.985 0.003 247.858);
+  --color-secondary-100: oklch(0.961 0.008 247.832);
+  --color-secondary-200: oklch(0.918 0.014 255.498);
+  --color-secondary-300: oklch(0.852 0.015 252.894);
+  --color-secondary-400: oklch(0.748 0.019 256.788);
+  --color-secondary-500: oklch(0.647 0.022 257.704);
+  --color-secondary-600: oklch(0.549 0.015 257.417);
+  --color-secondary-700: oklch(0.459 0.015 257.281);
+  --color-secondary-800: oklch(0.385 0.015 257.137);
+  --color-secondary-900: oklch(0.324 0.013 256.165);
+  --color-secondary-950: oklch(0.176 0.014 260.091);
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: var(--color-secondary-50);
+  color: var(--color-secondary-900);
+}

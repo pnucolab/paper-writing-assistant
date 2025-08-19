@@ -1,0 +1,597 @@
+<script lang="ts">
+    import { onMount } from 'svelte';
+    import TextArea from '$lib/components/TextArea.svelte';
+	import Card from '$lib/components/Card.svelte';
+	import Heading from '$lib/components/Heading.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import Label from '$lib/components/Label.svelte';
+	import Icon from '@iconify/svelte';
+	import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
+	import type { Citation } from './common';
+	import { OpenRouterClient, getOpenRouterSettings } from '$lib/utils/openRouter';
+	import { getFocusStepPrompt, getInterfaceLanguageEnforcement, type CitationContext } from './prompts';
+	
+	// i18n
+	import { m } from '$lib/paraglide/messages.js';
+	import { getLocale } from '$lib/paraglide/runtime.js';
+
+	// Props
+	let { 
+		citations = [],
+		onNextStep,
+		onPreviousStep
+	}: { 
+		citations?: Citation[];
+		onNextStep: () => void;
+		onPreviousStep: () => void;
+	} = $props();
+
+	// Load paper format from previous step
+	let paperFormat = $state<{paperType: string, targetLength: number, targetLanguage: string}>({paperType: 'research', targetLength: 5000, targetLanguage: 'English'});
+
+	// Research focus data
+	let researchFocus = $state('');
+	
+	// OpenRouter client instance
+	let openRouterClient: OpenRouterClient | null = null;
+	
+	// Chatbot data
+	let chatMessages = $state<Array<{role: 'user' | 'assistant', content: string, timestamp: string, error?: boolean}>>([]);
+	let currentMessage = $state('');
+	let isGeneratingResponse = $state(false);
+	let streamingMessageContent = $state('');
+	let isStreamingMessage = $state(false);
+
+	// Localized research prompts using i18n
+	let researchPrompts = $derived(() => ({
+		research: {
+			agenda: m.focus_prompts_research_agenda(),
+			gap: m.focus_prompts_research_gap()
+		},
+		review: {
+			agenda: m.focus_prompts_review_agenda(),
+			gap: m.focus_prompts_review_gap()
+		},
+		perspective: {
+			agenda: m.focus_prompts_perspective_agenda(),
+			gap: m.focus_prompts_perspective_gap()
+		},
+		protocol: {
+			agenda: m.focus_prompts_protocol_agenda(),
+			gap: m.focus_prompts_protocol_gap()
+		},
+		reply: {
+			agenda: m.focus_prompts_reply_agenda(),
+			gap: m.focus_prompts_reply_gap()
+		},
+		letter: {
+			agenda: m.focus_prompts_letter_agenda(),
+			gap: m.focus_prompts_letter_gap()
+		}
+	}));
+
+	// Validation
+	let canProceedToNextStep = $derived(() => {
+		return researchFocus.trim().length > 0;
+	});
+
+	function saveFocusData() {
+		try {
+			const focusData = {
+				researchFocus,
+				chatMessages,
+				lastSaved: new Date().toISOString()
+			};
+			localStorage.setItem('paperwriter-focus', JSON.stringify(focusData));
+		} catch (error) {
+			console.error('Failed to save focus data:', error);
+		}
+	}
+
+
+	// Simulate typing effect for displaying text character by character
+	async function typewriterEffect(text: string, callback: (char: string) => void) {
+		const words = text.split(' ');
+		for (let i = 0; i < words.length; i++) {
+			callback(words[i]);
+			// Add random delay to simulate natural typing
+			const delay = Math.random() * 30;
+			await new Promise(resolve => setTimeout(resolve, delay));
+		}
+	}
+
+
+
+	// Send message to AI chatbot
+	async function sendChatMessage() {
+		if (!currentMessage.trim() || !openRouterClient) return;
+		
+		const userMessage = currentMessage.trim();
+		currentMessage = '';
+		isGeneratingResponse = true;
+		streamingMessageContent = '';
+		isStreamingMessage = false;
+		
+		// Add user message
+		chatMessages = [...chatMessages, {
+			role: 'user',
+			content: userMessage,
+			timestamp: new Date().toISOString()
+		}];
+		
+		try {
+			const settings = getOpenRouterSettings();
+			if (!settings || !settings.apiKey) {
+				throw new Error(m.focus_api_not_configured());
+			}
+
+			// Build system prompt based on paper type and context
+			const paperType = paperFormat.paperType as keyof ReturnType<typeof researchPrompts>;
+			const prompts = researchPrompts()[paperType];
+			
+			// Build citations context for the prompt function
+			const citationsContext: CitationContext[] = citations.map(citation => ({
+				id: citation.id,
+				title: citation.title,
+				authors: citation.authors.join(', '),
+				year: citation.year,
+				abstract: citation.abstract || 'No abstract available'
+			}));
+			
+			// Get system prompt with language enforcement
+			const baseSystemPrompt = getFocusStepPrompt(
+				paperType,
+				researchFocus,
+				citationsContext,
+				prompts?.agenda,
+				prompts?.gap
+			);
+			
+			// Add strong language enforcement to ensure AI responds in same language as UI
+			const uiLanguage = getLocale();
+			const languageEnforcement = getInterfaceLanguageEnforcement(uiLanguage, paperFormat.targetLanguage);
+			const systemPrompt = `${languageEnforcement}${baseSystemPrompt}`;
+
+			// Build conversation context for streaming
+			const conversationHistory = chatMessages.filter(m => !m.error).map(m => m.content).join('\n\n');
+			const fullUserPrompt = conversationHistory ? `${conversationHistory}\n\nUser: ${userMessage}` : userMessage;
+
+			isStreamingMessage = true;
+			streamingMessageContent = '';
+
+			// Use the streaming method from OpenRouter utility
+			const assistantMessage = await openRouterClient.chatCompletionStream(
+				systemPrompt,
+				fullUserPrompt,
+				(chunk: string) => {
+					streamingMessageContent += chunk;
+				},
+				{
+					model: settings.model,
+					temperature: 0.7,
+					max_tokens: settings.maxTokens
+				}
+			);
+
+			isStreamingMessage = false;
+			
+			// Add the complete assistant message
+			chatMessages = [...chatMessages, {
+				role: 'assistant',
+				content: assistantMessage,
+				timestamp: new Date().toISOString()
+			}];
+
+			isGeneratingResponse = false;
+			saveFocusData();
+
+		} catch (error) {
+			console.error('Failed to send chat message:', error);
+			isGeneratingResponse = false;
+			isStreamingMessage = false;
+			
+			// Add error message to chat
+			chatMessages = [...chatMessages, {
+				role: 'assistant',
+				content: `Error: ${error instanceof Error ? error.message : m.focus_ai_error()}`,
+				timestamp: new Date().toISOString(),
+				error: true
+			}];
+			saveFocusData();
+		}
+	}
+	
+	// Start guided research focus session
+	async function startGuidedSession() {
+		if (chatMessages.length === 0) {
+			const paperType = paperFormat.paperType as keyof ReturnType<typeof researchPrompts>;
+			const prompts = researchPrompts()[paperType];
+			
+			// Create localized welcome message
+			const agenda = prompts?.agenda || m.focus_prompts_research_agenda();
+			let welcomeMessage: string;
+			
+			if (citations && citations.length > 0) {
+				welcomeMessage = m.focus_ai_welcome_with_citations({
+					paperType,
+					agenda,
+					count: citations.length
+				});
+			} else {
+				welcomeMessage = m.focus_ai_welcome_base({
+					paperType,
+					agenda
+				});
+			}
+			
+			// Start streaming the initial message
+			isStreamingMessage = true;
+			streamingMessageContent = '';
+			
+			// Use typewriter effect for the welcome message
+			await typewriterEffect(welcomeMessage, (word) => {
+				streamingMessageContent += word + ' ';
+			});
+			
+			// Add the complete message to chat history
+			chatMessages = [{
+				role: 'assistant',
+				content: welcomeMessage,
+				timestamp: new Date().toISOString()
+			}];
+			
+			isStreamingMessage = false;
+			saveFocusData();
+		}
+	}
+
+	// Clear chat history
+	function clearChatHistory() {
+		if (confirm(m.focus_clear_confirm())) {
+			chatMessages = [];
+			streamingMessageContent = '';
+			isStreamingMessage = false;
+			isGeneratingResponse = false;
+			saveFocusData();
+		}
+	}
+
+	// Copy message content to clipboard
+	async function copyToClipboard(content: string) {
+		try {
+			await navigator.clipboard.writeText(content);
+			// Could add a toast notification here if needed
+		} catch (error) {
+			console.error('Failed to copy to clipboard:', error);
+			// Fallback for older browsers
+			const textArea = document.createElement('textarea');
+			textArea.value = content;
+			document.body.appendChild(textArea);
+			textArea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textArea);
+		}
+	}
+
+	// Copy message content to research focus textarea
+	function copyToResearchFocus(content: string) {
+		// Remove markdown formatting for cleaner text in the textarea
+		const cleanContent = content
+			.replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
+			.replace(/\*(.*?)\*/g, '$1') // Remove italic formatting
+			.replace(/`(.*?)`/g, '$1') // Remove inline code formatting
+			.replace(/^#+\s/gm, '') // Remove heading markers
+			.replace(/^[-*]\s/gm, '• ') // Convert list markers to bullets
+			.trim();
+		researchFocus = cleanContent;
+		saveFocusData();
+	}
+
+    function proceedToNextStep() {
+		if (!canProceedToNextStep()) {
+			alert(m.focus_validation_required());
+			return;
+		}
+		saveFocusData();
+		onNextStep();
+	}
+
+	function loadFocusData() {
+		try {
+			// Load paper format from previous step
+			const savedFormat = localStorage.getItem('paperwriter-paper-format');
+			if (savedFormat) {
+				const format = JSON.parse(savedFormat);
+				paperFormat = {
+					paperType: format.paperType || 'research',
+					targetLength: format.targetLength || 5000,
+					targetLanguage: format.targetLanguage || 'English'
+				};
+			}
+			
+			// Load focus data
+			const savedFocus = localStorage.getItem('paperwriter-focus');
+			if (savedFocus) {
+				const focusData = JSON.parse(savedFocus);
+				researchFocus = focusData.researchFocus || '';
+				chatMessages = focusData.chatMessages || [];
+			}
+		} catch (error) {
+			console.error('Failed to load focus data:', error);
+		}
+	}
+    
+	// Load saved data on mount
+	onMount(() => {
+		loadFocusData();
+		
+		// Initialize OpenRouter client
+		const settings = getOpenRouterSettings();
+		if (settings?.apiKey) {
+			openRouterClient = new OpenRouterClient({
+				apiKey: settings.apiKey,
+				siteUrl: window.location.origin,
+				siteName: 'Paper Writer Assistant'
+			});
+		}
+	});
+</script>
+
+<!-- Research Focus Step -->
+<div class="space-y-6">
+    <!-- Research Focus -->
+    <Card>
+        {#snippet header()}
+            <Heading level="h3" size="lg">{m.focus_step_title()}</Heading>
+            <p class="text-secondary-600 mt-1">{m.focus_step_subtitle({ paperType: paperFormat.paperType })}</p>
+        {/snippet}
+        
+        <div class="space-y-6">
+            <!-- Research Focus Textbox -->
+            <div>
+                <Label for="research-focus">{m.focus_research_focus_label()}</Label>
+                <TextArea
+                    id="research-focus"
+                    bind:value={researchFocus}
+                    placeholder={m.focus_research_focus_placeholder()}
+                    rows={4}
+                    onkeyup={() => saveFocusData()}
+                />
+                <p class="text-sm text-secondary-500 mt-1">
+                    {m.focus_research_focus_help()}
+                </p>
+            </div>
+            
+            <!-- AI Assistant Chat -->
+            <div class="space-y-4">
+                <!-- Chat Messages -->
+                <div class="max-h-96 overflow-y-auto space-y-3 p-4 bg-secondary-50 rounded-lg border border-secondary-200">
+                    {#if chatMessages.length === 0 && !isStreamingMessage}
+                        <div class="text-center py-8">
+                            <Icon icon="heroicons:chat-bubble-left-right" class="w-12 h-12 mx-auto mb-3 text-secondary-400" />
+                            <p class="text-secondary-500 mb-4">{m.focus_ai_help_title()}</p>
+                            <Button
+                                onclick={startGuidedSession}
+                                variant="primary"
+                                iconLeft="heroicons:sparkles"
+                            >
+                                {m.focus_start_ai_session()}
+                            </Button>
+                        </div>
+                    {:else}
+                        {#each chatMessages as message}
+                            <div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
+                                <div class="relative group max-w-lg px-4 py-2 rounded-lg shadow {message.role === 'user' ? 'bg-primary-600 text-white' : message.error ? 'bg-red-50 border border-red-200 text-red-900' : 'bg-white border border-secondary-200 text-secondary-900'}">
+                                    {#if message.error}
+                                        <div class="flex items-start space-x-2">
+                                            <Icon icon="heroicons:exclamation-triangle" class="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                            <div>
+                                                <MarkdownRenderer content={message.content} class="text-sm" />
+                                            </div>
+                                        </div>
+                                    {:else}
+                                        <MarkdownRenderer content={message.content} class="text-sm" />
+                                    {/if}
+                                    
+                                    <div class="flex justify-between items-end mt-1">
+                                        <p class="text-xs opacity-75">
+                                            {new Date(message.timestamp).toLocaleTimeString()}
+                                        </p>
+                                        <!-- Hover buttons for AI messages (non-error, non-user) -->
+                                        {#if message.role === 'assistant' && !message.error}
+                                            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex justify-end space-x-1">
+                                                <button
+                                                    onclick={() => copyToClipboard(message.content)}
+                                                    class="p-1 bg-secondary-100 hover:bg-secondary-200 rounded border border-secondary-300 transition-colors"
+                                                    title={m.focus_copy_clipboard()}
+                                                >
+                                                    <Icon icon="heroicons:clipboard" class="w-3 h-3 text-secondary-600" />
+                                                </button>
+                                                <button
+                                                    onclick={() => copyToResearchFocus(message.content)}
+                                                    class="p-1 bg-primary-100 hover:bg-primary-200 rounded border border-primary-300 transition-colors"
+                                                    title={m.focus_copy_to_focus()}
+                                                >
+                                                    <Icon icon="heroicons:document-text" class="w-3 h-3 text-primary-600" />
+                                                </button>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                </div>
+                            </div>
+                        {/each}
+                    {/if}
+                    
+                    {#if isStreamingMessage}
+                        <div class="flex justify-start">
+                            <div class="relative group max-w-lg px-4 py-2 rounded-lg bg-white border border-secondary-200 text-secondary-900">
+                                <div class="flex items-end">
+                                    <MarkdownRenderer content={streamingMessageContent} class="text-sm" />
+                                    <span class="animate-pulse ml-1">|</span>
+                                </div>
+                            </div>
+                        </div>
+                    {:else if isGeneratingResponse}
+                        <div class="flex justify-start">
+                            <div class="max-w-lg px-4 py-2 rounded-lg bg-white border border-secondary-200">
+                                <div class="flex items-center space-x-2">
+                                    <Icon icon="heroicons:arrow-path" class="w-4 h-4 animate-spin text-secondary-500" />
+                                    <span class="text-sm text-secondary-500">{m.focus_ai_thinking()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    {/if}
+                </div>
+                
+                <!-- Chat Input -->
+                <div class="flex space-x-3">
+                    <div class="flex-1">
+                        <Input
+                            bind:value={currentMessage}
+                            placeholder={m.focus_message_placeholder()}
+                            onkeyup={(e: KeyboardEvent) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    sendChatMessage();
+                                }
+                            }}
+                            disabled={isGeneratingResponse || isStreamingMessage}
+                        />
+                    </div>
+                    <Button
+                        onclick={sendChatMessage}
+                        disabled={!currentMessage.trim() || isGeneratingResponse || isStreamingMessage}
+                        variant="primary"
+                        iconLeft="heroicons:paper-airplane"
+                    >
+                        {m.focus_send_button()}
+                    </Button>
+                    {#if chatMessages.length > 0}
+                        <Button
+                            onclick={clearChatHistory}
+                            disabled={isGeneratingResponse || isStreamingMessage}
+                            variant="secondary"
+                            iconLeft="heroicons:trash"
+                        >
+                            {m.focus_clear_button()}
+                        </Button>
+                    {/if}
+                </div>
+                
+                <!-- Quick Actions -->
+                {#if chatMessages.length > 0}
+                    <div class="flex flex-wrap gap-2 pt-2 border-t border-secondary-200">
+                        <span class="text-sm text-secondary-600">{m.focus_quick_actions()}</span>
+                        
+                        {#if researchFocus.trim()}
+                            <button
+                                onclick={() => {
+                                    currentMessage = m.focus_quick_refine({ focus: researchFocus });
+                                    sendChatMessage();
+                                }}
+                                disabled={isGeneratingResponse || isStreamingMessage}
+                                class="text-sm px-3 py-1 bg-primary-100 text-primary-700 rounded-full hover:bg-primary-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {m.focus_refine_focus()}
+                            </button>
+                        {/if}
+                        
+                        <button
+                            onclick={() => {
+                                currentMessage = m.focus_quick_specific();
+                                sendChatMessage();
+                            }}
+                            disabled={isGeneratingResponse || isStreamingMessage}
+                            class="text-sm px-3 py-1 bg-primary-100 text-primary-700 rounded-full hover:bg-primary-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {m.focus_make_specific()}
+                        </button>
+                        <button
+                            onclick={() => {
+                                currentMessage = m.focus_quick_gap();
+                                sendChatMessage();
+                            }}
+                            disabled={isGeneratingResponse || isStreamingMessage}
+                            class="text-sm px-3 py-1 bg-primary-100 text-primary-700 rounded-full hover:bg-primary-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {m.focus_identify_gap()}
+                        </button>
+                        
+                        {#if citations && citations.length > 0}
+                            <button
+                                onclick={() => {
+                                    currentMessage = m.focus_quick_citations();
+                                    sendChatMessage();
+                                }}
+                                disabled={isGeneratingResponse || isStreamingMessage}
+                                class="text-sm px-3 py-1 bg-primary-100 text-primary-700 rounded-full hover:bg-primary-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {m.focus_connect_citations()}
+                            </button>
+                        {/if}
+                        
+                        <!-- Show retry button for the last message if it was an error -->
+                        {#if chatMessages.length > 0 && chatMessages[chatMessages.length - 1].error}
+                            <button
+                                onclick={() => {
+                                    // Remove the error message and retry the last user message
+                                    const lastErrorIndex = chatMessages.length - 1;
+                                    const lastUserMessage = chatMessages.slice(0, lastErrorIndex).findLast(m => m.role === 'user');
+                                    if (lastUserMessage) {
+                                        chatMessages = chatMessages.slice(0, lastErrorIndex);
+                                        currentMessage = lastUserMessage.content;
+                                        sendChatMessage();
+                                    }
+                                }}
+                                disabled={isGeneratingResponse || isStreamingMessage}
+                                class="text-sm px-3 py-1 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {m.focus_retry()}
+                            </button>
+                        {/if}
+                        
+                        <!-- Clear chat button in quick actions -->
+                        <button
+                            onclick={clearChatHistory}
+                            disabled={isGeneratingResponse || isStreamingMessage}
+                            class="text-sm px-3 py-1 bg-secondary-100 text-secondary-700 rounded-full hover:bg-secondary-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {m.focus_clear_chat()}
+                        </button>
+                    </div>
+                {/if}
+            </div>
+        </div>
+    </Card>
+
+    <!-- Navigation -->
+    {#if !canProceedToNextStep()}
+        <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div class="flex items-center">
+                <Icon icon="heroicons:exclamation-triangle" class="w-5 h-5 text-amber-600 mr-2" />
+                <span class="text-sm font-medium text-amber-800">{m.focus_research_required()}</span>
+            </div>
+            <p class="text-sm text-amber-700 mt-1">
+                {m.focus_research_required_help()}
+            </p>
+        </div>
+    {/if}
+    <div class="flex justify-between">
+        <Button
+            onclick={onPreviousStep}
+            variant="secondary"
+            iconLeft="heroicons:arrow-left"
+        >
+            {m.focus_previous_step()}
+        </Button>
+        <Button
+            onclick={proceedToNextStep}
+            disabled={!canProceedToNextStep()}
+            variant="primary"
+            iconRight="heroicons:arrow-right"
+        >
+            {m.focus_next_step()}
+        </Button>
+    </div>
+</div>
