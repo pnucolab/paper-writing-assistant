@@ -540,7 +540,7 @@
                                 draftId={draftId}
                                 projectTitle={paperTitle}
                                 manuscriptTitle={paperTitle}
-                                isCompleted={true}
+                                isCompleted={false}
                                 content={`# ${paperTitle}\n\n${generatedContent}\n\n${generatedReferences}`}
                             />
                         </div>

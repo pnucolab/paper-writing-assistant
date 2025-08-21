@@ -39,7 +39,7 @@
 			}
 		} catch (error) {
 			console.error('Failed to download markdown:', error);
-			alert('Failed to download markdown file');
+			alert(m.download_error_markdown());
 		} finally {
 			isDownloading = false;
 		}
@@ -60,7 +60,7 @@
 			await downloadDocxFile(downloadContent, filename);
 		} catch (error) {
 			console.error('Failed to download DOCX:', error);
-			alert('Failed to download DOCX file');
+			alert(m.download_error_docx());
 		} finally {
 			isDownloading = false;
 		}
@@ -72,14 +72,14 @@
 			const draftData = loadCompleteDraftData(draftId);
 			
 			if (!draftData) {
-				alert('Failed to load draft data');
+				alert(m.download_error_no_data());
 				return;
 			}
 			
 			await downloadProjectReport(draftData);
 		} catch (error) {
 			console.error('Failed to download report:', error);
-			alert('Failed to download project report');
+			alert(m.download_error_report());
 		} finally {
 			isDownloading = false;
 		}
@@ -89,11 +89,11 @@
 <div class="space-y-4 {className}">
 	<div class="flex items-center space-x-2 mb-4">
 		<Icon icon="heroicons:arrow-down-tray" class="w-5 h-5 text-secondary-600" />
-		<h3 class="text-lg font-medium text-secondary-900">Download Options</h3>
+		<h3 class="text-lg font-medium text-secondary-900">{m.download_options_title()}</h3>
 		{#if isCompleted}
 			<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
 				<Icon icon="heroicons:check-circle" class="w-3 h-3 mr-1" />
-				Completed
+				{m.drafts_completed()}
 			</span>
 		{/if}
 	</div>
@@ -103,9 +103,9 @@
 		<div class="border border-secondary-200 rounded-lg p-4">
 			<div class="flex items-center space-x-2 mb-2">
 				<Icon icon="heroicons:document-text" class="w-5 h-5 text-blue-600" />
-				<h4 class="font-medium text-secondary-900">Markdown</h4>
+				<h4 class="font-medium text-secondary-900">{m.download_markdown_title()}</h4>
 			</div>
-			<p class="text-sm text-secondary-600 mb-3">Raw markdown format, perfect for version control and editing</p>
+			<p class="text-sm text-secondary-600 mb-3">{m.download_markdown_description()}</p>
 			<Button
 				onclick={handleDownloadMarkdown}
 				disabled={isDownloading}
@@ -114,7 +114,7 @@
 				iconLeft="heroicons:arrow-down-tray"
 				class="w-full"
 			>
-				{isDownloading ? 'Downloading...' : 'Download .md'}
+				{isDownloading ? m.download_downloading() : m.download_md_button()}
 			</Button>
 		</div>
 
@@ -122,9 +122,9 @@
 		<div class="border border-secondary-200 rounded-lg p-4">
 			<div class="flex items-center space-x-2 mb-2">
 				<Icon icon="heroicons:document" class="w-5 h-5 text-blue-800" />
-				<h4 class="font-medium text-secondary-900">Word Document</h4>
+				<h4 class="font-medium text-secondary-900">{m.download_docx_title()}</h4>
 			</div>
-			<p class="text-sm text-secondary-600 mb-3">Microsoft Word format, ready for submission and collaboration</p>
+			<p class="text-sm text-secondary-600 mb-3">{m.download_docx_description()}</p>
 			<Button
 				onclick={handleDownloadDocx}
 				disabled={isDownloading}
@@ -133,7 +133,7 @@
 				iconLeft="heroicons:arrow-down-tray"
 				class="w-full"
 			>
-				{isDownloading ? 'Converting...' : 'Download .docx'}
+				{isDownloading ? m.download_converting() : m.download_docx_button()}
 			</Button>
 		</div>
 
@@ -141,9 +141,9 @@
 		<div class="border border-secondary-200 rounded-lg p-4">
 			<div class="flex items-center space-x-2 mb-2">
 				<Icon icon="heroicons:chart-bar" class="w-5 h-5 text-purple-600" />
-				<h4 class="font-medium text-secondary-900">Transparency Report</h4>
+				<h4 class="font-medium text-secondary-900">{m.download_report_title()}</h4>
 			</div>
-			<p class="text-sm text-secondary-600 mb-3">Transparency report documenting format, research focus, outline, and AI workflow process</p>
+			<p class="text-sm text-secondary-600 mb-3">{m.download_report_description()}</p>
 			<Button
 				onclick={handleDownloadReport}
 				disabled={isDownloading}
@@ -152,22 +152,9 @@
 				iconLeft="heroicons:arrow-down-tray"
 				class="w-full"
 			>
-				{isDownloading ? 'Generating...' : 'Download DOCX'}
+				{isDownloading ? m.download_generating() : m.download_report_button()}
 			</Button>
 		</div>
 	</div>
 
-	{#if !isCompleted}
-		<div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
-			<div class="flex items-center">
-				<Icon icon="heroicons:exclamation-triangle" class="w-5 h-5 text-amber-600 mr-2" />
-				<div>
-					<p class="text-sm font-medium text-amber-800">Draft in Progress</p>
-					<p class="text-sm text-amber-700 mt-1">
-						Complete the writing step to mark this draft as finished. Downloads are available at any stage.
-					</p>
-				</div>
-			</div>
-		</div>
-	{/if}
 </div>

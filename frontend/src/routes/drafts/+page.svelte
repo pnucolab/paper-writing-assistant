@@ -126,7 +126,11 @@
 		}
 	}
 
-	function getStepDisplayName(step: WorkflowStep): string {
+	function getStepDisplayName(step: WorkflowStep, isCompleted?: boolean): string {
+		if (isCompleted) {
+			return m.drafts_completed();
+		}
+		
 		switch (step) {
 			case 'format': return m.newpaper_step_format_title();
 			case 'documents': return m.newpaper_step_documents_title();
@@ -138,6 +142,10 @@
 	}
 
 	function getStepProgress(draft: Draft): number {
+		if (draft.isCompleted) {
+			return 100;
+		}
+		
 		const stepOrder: WorkflowStep[] = ['format', 'documents', 'focus', 'outline', 'writing'];
 		const currentIndex = stepOrder.indexOf(draft.currentStep);
 		return Math.round(((currentIndex + 1) / stepOrder.length) * 100);
@@ -244,30 +252,6 @@
 				</div>
 			</div>
 
-			<!-- LLM Configuration Warning -->
-			{#if !hasValidLLMConfig}
-				<div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-					<div class="flex items-start">
-						<Icon icon="heroicons:exclamation-triangle" class="w-5 h-5 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
-						<div class="flex-1">
-							<h3 class="text-sm font-medium text-amber-800 mb-1">
-								{m.llm_config_warning_title()}
-							</h3>
-							<p class="text-sm text-amber-700 mb-3">
-								{m.llm_config_warning_description()}
-							</p>
-							<Button
-								href="/settings"
-								variant="secondary"
-								size="sm"
-								iconLeft="heroicons:cog-6-tooth"
-							>
-								{m.llm_configure_button()}
-							</Button>
-						</div>
-					</div>
-				</div>
-			{/if}
 
 			{#each drafts as draft (draft.id)}
 				<Card>
@@ -289,7 +273,7 @@
 											{/if}
 										</div>
 										<p class="text-sm text-secondary-600">
-											{m.cover_draft_step({ step: getStepDisplayName(draft.currentStep), title: getStepDisplayName(draft.currentStep) })}
+											{formatDate(draft.lastModified)}
 										</p>
 									</div>
 								</div>
@@ -298,7 +282,7 @@
 								<div class="mt-4">
 									<div class="flex items-center justify-between mb-2">
 										<span class="text-sm font-medium text-secondary-700">
-											{m.cover_draft_step({ step: getStepDisplayName(draft.currentStep), title: getStepDisplayName(draft.currentStep) })}
+											{getStepDisplayName(draft.currentStep, draft.isCompleted)}
 										</span>
 										<span class="text-sm text-secondary-500">
 											{getStepProgress(draft)}%
@@ -312,10 +296,9 @@
 									</div>
 								</div>
 								
-								<!-- Timestamps -->
-								<div class="mt-4 flex justify-between text-xs text-secondary-500">
+								<!-- Created timestamp -->
+								<div class="mt-4 text-xs text-secondary-500">
 									<span>{m.cover_draft_created({ date: formatDate(draft.createdAt) })}</span>
-									<span>{m.cover_draft_modified({ date: formatDate(draft.lastModified) })}</span>
 								</div>
 							</div>
 							
@@ -346,7 +329,7 @@
 								<DownloadOptions 
 									draftId={draft.id}
 									projectTitle={draft.projectTitle}
-									isCompleted={draft.isCompleted}
+									isCompleted={false}
 								/>
 							</div>
 						{/if}

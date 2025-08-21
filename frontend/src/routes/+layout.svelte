@@ -2,9 +2,8 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import Sidebar from '$lib/components/ui/Sidebar.svelte';
-	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
-	import { setLocale, getLocale } from '$lib/paraglide/runtime.js';
+	import { setLocale } from '$lib/paraglide/runtime.js';
 
 	let { children } = $props();
 
