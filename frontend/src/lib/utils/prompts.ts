@@ -1,4 +1,5 @@
 // AI Prompts for Paper Writer Assistant
+import type { CitationContext, SectionContext } from '../stores/drafts';
 
 // Language Enforcement Functions
 export function getInterfaceLanguageEnforcement(interfaceLanguage: string, targetLanguage: string): string {
@@ -44,18 +45,6 @@ export function getTargetLanguageEnforcement(targetLanguage: string): string {
 `;
 }
 
-
-export interface CitationContext {
-	title: string;
-	authors: string;
-	year: number;
-	abstract: string;
-}
-
-export interface SectionContext {
-	title: string;
-}
-
 // Research Focus Development Prompt
 export function getFocusStepPrompt(
 	paperType: string,
@@ -94,7 +83,7 @@ Guidelines:
 - Help them articulate their methodology and approach
 - Reference the provided citations when relevant to strengthen research focus
 - Provide detailed explanations and examples when helpful
-- You MUST NOT use tables.`;
+- You MUST NOT use tables in your answer - instead, use bullet points or numbered lists.`;
 }
 
 // Title Generation Prompt

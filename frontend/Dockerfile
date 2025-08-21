@@ -1,5 +1,9 @@
 FROM node:24-alpine
 
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
 WORKDIR /app
 
 # Copy package files
@@ -12,8 +16,8 @@ RUN pnpm install
 # Copy source code
 COPY . .
 
-# Expose port
-EXPOSE 3000
+# Build the application
+RUN pnpm run build
 
-# Start the application
-CMD ["pnpm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
+# remove /www and copy the build output
+CMD ["sh", "-c", "rm -rf /www/* /www/.[!.]* /www/..?* && cp -r build/. /www/"]

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Button from '$lib/components/Button.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import * as m from '$lib/paraglide/messages.js';
@@ -44,7 +44,7 @@
 				<!-- CTA Buttons -->
 				<div class="flex items-center justify-center mb-12 opacity-0 {mounted ? 'animate-fade-in-up animation-delay-600' : ''}">
 					<Button
-						href="/new-paper"
+						href="/drafts"
 						variant="primary"
 						size="lg"
 						class="shadow-sm hover:shadow-md transition-all duration-200"
@@ -178,6 +178,66 @@
 		</div>
 	</div>
 
+	<!-- Rationale Section -->
+	<div class="py-20 bg-secondary-50 border-t border-secondary-200">
+		<div class="max-w-7xl mx-auto px-6">
+			<div class="text-center mb-16">
+				<h2 class="text-3xl font-semibold text-secondary-900 mb-4">
+					{m.home_rationale_title()}
+				</h2>
+				<p class="text-lg text-secondary-600 max-w-3xl mx-auto">
+					{m.home_rationale_subtitle()}
+				</p>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+				<!-- Traceable AI Interactions -->
+				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
+					<div class="w-10 h-10 bg-green-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-700 transition-colors duration-200">
+						<Icon icon="heroicons:document-check" class="w-5 h-5" />
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_traceable_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed">
+						{m.home_rationale_traceable_description()}
+					</p>
+				</div>
+
+				<!-- Human-in-the-Loop Design -->
+				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
+					<div class="w-10 h-10 bg-amber-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-amber-700 transition-colors duration-200">
+						<Icon icon="heroicons:users" class="w-5 h-5" />
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_human_control_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed">
+						{m.home_rationale_human_control_description()}
+					</p>
+				</div>
+
+				<!-- Lower Language Barriers -->
+				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
+					<div class="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-700 transition-colors duration-200">
+						<Icon icon="heroicons:language" class="w-5 h-5" />
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_language_barrier_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed">
+						{m.home_rationale_language_barrier_description()}
+					</p>
+				</div>
+
+				<!-- Scientific Integrity -->
+				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
+					<div class="w-10 h-10 bg-purple-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-700 transition-colors duration-200">
+						<Icon icon="heroicons:academic-cap" class="w-5 h-5" />
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_quality_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed">
+						{m.home_rationale_quality_description()}
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- CTA Section -->
 	<div class="py-20 bg-primary-600 text-white">
 		<div class="max-w-7xl mx-auto px-6 text-center">
@@ -188,7 +248,7 @@
 				{m.home_cta_subtitle()}
 			</p>
 			<Button
-				href="/new-paper"
+				href="/drafts"
 				variant="secondary"
 				size="lg"
 				class="bg-white text-primary-600 hover:bg-primary-50 shadow-sm hover:shadow-md transition-all duration-200"

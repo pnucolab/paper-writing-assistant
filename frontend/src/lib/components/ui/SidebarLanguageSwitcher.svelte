@@ -12,8 +12,8 @@
 	let showLanguageMenu = $state(false);
 
 	const languages = [
-		{ code: 'en', name: 'English', flag: '🇺🇸' },
-		{ code: 'ko', name: '한국어', flag: '🇰🇷' }
+		{ code: 'en', name: 'English' },
+		{ code: 'ko', name: '한국어' }
 	];
 
 	let selectedLanguage = $derived(
@@ -76,7 +76,6 @@
 					class:font-medium={getLocale() === language.code}
 					class:font-normal={getLocale() !== language.code}
 				>
-					<span class="text-base mr-3">{language.flag}</span>
 					<span>{language.name}</span>
 					{#if getLocale() === language.code}
 						<Icon icon="heroicons:check" class="w-4 h-4 ml-auto text-green-600" />

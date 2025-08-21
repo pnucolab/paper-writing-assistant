@@ -1,4 +1,4 @@
-import type { Citation } from '../../routes/new-paper/common';
+import type { Citation } from '../stores/drafts';
 
 export type CitationStyle = 'apa' | 'mla' | 'chicago' | 'harvard' | 'ieee';
 

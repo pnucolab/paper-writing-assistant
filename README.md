@@ -2,6 +2,17 @@
 
 An AI-powered scientific paper writing assistant that helps researchers write papers based on their thoughts, experimental outcomes, and literature research. The application uses an agentic workflow to guide users through the complete paper writing process.
 
+## Project Rationale
+
+This tool was carefully designed to make all AI-assisted paper writing **traceable and transparent**, providing a comprehensive report of all user-AI interactions. Rather than generating research papers instantly, this application involves meaningful human interaction at each step to create better papers, lower language barriers, and maintain focus on scientific work.
+
+### Core Principles
+
+- **🔍 Traceable AI Interactions**: Every AI interaction is logged and can be exported as a comprehensive report, ensuring full transparency in the writing process
+- **👥 Human-in-the-Loop Design**: Instead of instant paper generation, we guide you through each step with meaningful human oversight to create better, more thoughtful research
+- **🌐 Lower Language Barriers**: Focus on your scientific work while AI assists with academic writing conventions, helping non-native speakers express their research clearly
+- **🎓 Scientific Integrity**: Step-by-step human verification ensures quality, accuracy, and authentic scholarly contribution rather than automated content generation
+
 ## Features
 
 - **Agentic Workflow**: Guided paper writing process with structured steps

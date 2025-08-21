@@ -38,12 +38,19 @@
 	},
 	"dependencies": {
 		"@inlang/paraglide-js": "^2.0.0",
+		"@m2d/list": "^0.0.8",
+		"@m2d/table": "^0.0.7",
 		"@orcid/bibtex-parse-js": "^0.0.25",
 		"@tiptap/core": "^3.2.0",
 		"@tiptap/pm": "^3.2.0",
 		"@tiptap/starter-kit": "^3.2.0",
+		"html2canvas": "^1.4.1",
+		"jspdf": "^3.0.1",
 		"marked": "^16.1.2",
-		"openai": "^5.12.2"
+		"mdast2docx": "^1.4.1",
+		"openai": "^5.12.2",
+		"remark-parse": "^11.0.0",
+		"unified": "^11.0.5"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [

@@ -1,0 +1,19 @@
+(logging) {
+	log stdoutlogger {
+		output stdout
+	}
+	log filelogger {
+		output file /var/log/caddy/access.log {
+			roll_size 10mb
+			roll_keep 10
+			roll_keep_for 72h
+		}
+	}
+}
+
+:80 {
+	import logging
+	root * /www
+	try_files {path} /index.html
+    file_server
+}

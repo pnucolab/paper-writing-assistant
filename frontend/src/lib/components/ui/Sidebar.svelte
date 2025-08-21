@@ -15,12 +15,12 @@
 		},
 		{
 			name: m.navigation_newPaper(),
-			href: '/new-paper',
+			href: '/drafts',
 			icon: 'heroicons:plus'
 		},
 		{
 			name: m.navigation_drafts(),
-			href: '/drafts',
+			href: '/revisions',
 			icon: 'heroicons:document-text'
 		},
 		{

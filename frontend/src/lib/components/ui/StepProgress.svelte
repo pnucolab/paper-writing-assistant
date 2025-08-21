@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 
-	type WorkflowStep = 'format' | 'documents' | 'focus' | 'outline' | 'writing';
+	import type { WorkflowStep } from '$lib/stores/drafts.js';
 
 	export interface StepConfig {
 		id: WorkflowStep;

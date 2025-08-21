@@ -77,6 +77,11 @@
 		line-height: 1.6;
 	}
 
+	:global(.markdown-content ul li),
+	:global(.markdown-content ol li) {
+		margin-bottom: 1rem;
+	}
+
 	/* Ensure proper spacing for nested lists */
 	:global(.markdown-content ul ul),
 	:global(.markdown-content ol ol),

@@ -10,7 +10,7 @@
 		href?: string;
 		disabled?: boolean;
 		type?: 'button' | 'submit' | 'reset';
-		onclick?: () => void;
+		onclick?: (event: MouseEvent) => void;
 		class?: string;
 		iconLeft?: string;
 		iconRight?: string;

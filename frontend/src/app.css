@@ -34,3 +34,7 @@ body {
   background-color: var(--color-secondary-50);
   color: var(--color-secondary-900);
 }
+
+li p {
+  display: inline;
+}

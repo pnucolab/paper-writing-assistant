@@ -1,15 +1,15 @@
 <script lang="ts">
     import { onMount } from 'svelte';
 
-    import TextArea from '$lib/components/TextArea.svelte';
-	import A from '$lib/components/A.svelte';
-	import Label from '$lib/components/Label.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import Card from '$lib/components/Card.svelte';
-	import Heading from '$lib/components/Heading.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import Button from '$lib/components/Button.svelte';
+    import TextArea from '$lib/components/ui/TextArea.svelte';
+	import A from '$lib/components/ui/A.svelte';
+	import Label from '$lib/components/ui/Label.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import Card from '$lib/components/ui/Card.svelte';
+	import Heading from '$lib/components/ui/Heading.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import Icon from '@iconify/svelte';
 
 	// i18n
@@ -18,15 +18,19 @@
 	// @ts-ignore
 	import * as bibtexParse from '@orcid/bibtex-parse-js';
 
-    import type { WorkflowStep, Citation } from './common';
+    import type { Citation } from '$lib/stores/drafts';
 
 	// Props
 	let { 
+		draftId,
 		citations = $bindable(),
+        uploadedFiles = $bindable(),
 		onNextStep,
 		onPreviousStep
 	}: { 
+		draftId: string;
 		citations: Citation[];
+        uploadedFiles: { id: string; name: string; type: string; size: number }[];
 		onNextStep: () => void;
 		onPreviousStep: () => void;
 	} = $props();
@@ -54,9 +58,6 @@
 	let currentPage = $state(1);
 	let itemsPerPage = $state(10);
 
-	// Load paper format from previous step
-	let paperFormat = $state<{paperType: string, targetLength: number}>({paperType: 'research', targetLength: 5000});
-
 	// Form states
 	let newCitation = $state({
 		title: '',
@@ -73,7 +74,7 @@
 		url: ''
 	});
 
-	// Citation types for brainstorming step
+	// Citation types
 	const citationTypes = [
 		{ value: 'article', label: m.documents_type_article() },
 		{ value: 'book', label: m.documents_type_book() },
@@ -81,44 +82,6 @@
 		{ value: 'webpage', label: m.documents_type_webpage() },
 		{ value: 'misc', label: m.documents_type_misc() }
 	];
-
-	// Brainstorming data
-	let researchFocus = $state('');
-	let uploadedFiles = $state<Array<{id: string, name: string, type: string, size: number, url: string}>>([]);
-	
-	// Chatbot data
-	let chatMessages = $state<Array<{role: 'user' | 'assistant', content: string, timestamp: string}>>([]);
-	let currentMessage = $state('');
-	let isGeneratingResponse = $state(false);
-
-
-	const researchPrompts: Record<string, {agenda: string; gap: string}> = {
-		research: {
-			agenda: 'What specific research question or hypothesis will your study address?',
-			gap: 'What gap in existing research does your study aim to fill?'
-		},
-		review: {
-			agenda: 'What topic or field will your review comprehensively examine?',
-			gap: 'What aspects of the literature need systematic analysis or synthesis?'
-		},
-		perspective: {
-			agenda: 'What new viewpoint or interpretation will your perspective offer?',
-			gap: 'What current understanding or approach needs a fresh perspective?'
-		},
-		protocol: {
-			agenda: 'What methodology or procedure will your protocol establish?',
-			gap: 'What standardized approach is currently missing in the field?'
-		},
-		reply: {
-			agenda: 'What points from the original work will you address or clarify?',
-			gap: 'What aspects of the discussion need further elaboration or correction?'
-		},
-		letter: {
-			agenda: 'What key message or finding will your letter communicate?',
-			gap: 'What important point needs to be brought to the community\'s attention?'
-		}
-	};
-
 
 	// Pagination computed values
 	let totalCitations = $derived(() => citations.length);
@@ -224,18 +187,16 @@
 		return citations;
 	}
 
-	function saveBrainstormingData() {
+	function saveDocumentsData() {
 		try {
-			const brainstormingData = {
+			const documentsData = {
 				citations,
-				researchFocus,
 				uploadedFiles,
-				chatMessages,
 				lastSaved: new Date().toISOString()
 			};
-			localStorage.setItem('paperwriter-documents', JSON.stringify(brainstormingData));
+			localStorage.setItem(`paperwriter-draft-${draftId}-documents`, JSON.stringify(documentsData));
 		} catch (error) {
-			console.error('Failed to save brainstorming data:', error);
+			console.error('Failed to save documents data:', error);
 		}
 	}
 
@@ -263,7 +224,7 @@
 		};
 
 		citations = [...citations, citation];
-		saveBrainstormingData();
+		saveDocumentsData();
 
 		// Reset form
 		newCitation = {
@@ -287,7 +248,7 @@
 		if (!confirm(m.documents_delete_confirm())) return;
 
 		citations = citations.filter(c => c.id !== citationId);
-		saveBrainstormingData();
+		saveDocumentsData();
 
 		// Clear selection if deleted citation was selected
 		if (selectedCitationId === citationId) {
@@ -351,7 +312,7 @@
 			url: editingCitation.url?.trim()
 		};
 
-		saveBrainstormingData();
+		saveDocumentsData();
 		editingCitationId = null;
 	}
 
@@ -378,7 +339,7 @@
 		const citationIndex = citations.findIndex(c => c.id === citationId);
 		if (citationIndex !== -1) {
 			citations[citationIndex].notes = notes;
-			saveBrainstormingData();
+			saveDocumentsData();
 		}
 	}
 
@@ -425,7 +386,7 @@
 			editingCitationId = null;
 		}
 
-		saveBrainstormingData();
+		saveDocumentsData();
 	}
 
 	function selectAllCitations() {
@@ -449,68 +410,6 @@
 		currentPage = page;
 	}
 
-	// Send message to AI chatbot
-	async function sendChatMessage() {
-		if (!currentMessage.trim()) return;
-		
-		const userMessage = currentMessage.trim();
-		currentMessage = '';
-		isGeneratingResponse = true;
-		
-		// Add user message
-		chatMessages = [...chatMessages, {
-			role: 'user',
-			content: userMessage,
-			timestamp: new Date().toISOString()
-		}];
-		
-		try {
-			// Here you would integrate with OpenRouter API
-			// For now, we'll add a placeholder response that helps with research focus
-			setTimeout(() => {
-				let response = '';
-				
-				// Check if this is the first interaction and no research focus exists
-				if (chatMessages.filter(m => m.role === 'assistant').length === 0 && !researchFocus.trim()) {
-					const paperType = paperFormat.paperType;
-					const prompts = researchPrompts[paperType];
-					response = `Hello! I'm here to help you develop your research focus for your ${paperType} paper. Let's start by discussing your main research idea.\n\n${prompts?.agenda || 'What specific research question or problem will your study address?'}\n\nFeel free to share your initial thoughts, and I'll help you refine them into a clear research focus.`;
-				} else if (userMessage.toLowerCase().includes('update') || userMessage.toLowerCase().includes('refine')) {
-					response = `I'll help you refine your research focus. Based on our discussion, here's a suggested research focus:\n\n"${userMessage}"\n\nWould you like me to help you make this more specific or adjust any particular aspect?`;
-				} else {
-					response = `That's interesting! Let me help you develop this further. ${researchPrompts[paperFormat.paperType]?.gap || 'What gap in existing research does this address?'}\n\nBased on what you've shared, I can help you craft a focused research statement. What aspect would you like to explore more?`;
-				}
-				
-				chatMessages = [...chatMessages, {
-					role: 'assistant',
-					content: response,
-					timestamp: new Date().toISOString()
-				}];
-				isGeneratingResponse = false;
-				saveBrainstormingData();
-			}, 1500);
-		} catch (error) {
-			console.error('Failed to send chat message:', error);
-			isGeneratingResponse = false;
-		}
-	}
-	
-	
-	// Start guided research focus session
-	function startGuidedSession() {
-		if (chatMessages.length === 0) {
-			const paperType = paperFormat.paperType;
-			const prompts = researchPrompts[paperType];
-			
-			chatMessages = [{
-				role: 'assistant',
-				content: `Welcome! I'm here to help you define your research focus for your ${paperType} paper.\n\n${prompts?.agenda || 'What specific research question or problem will your study address?'}\n\nLet's start by discussing your main research idea. What topic or problem are you interested in exploring?`,
-				timestamp: new Date().toISOString()
-			}];
-			saveBrainstormingData();
-		}
-	}
-	
 	// Handle file upload
 	function handleFileUpload(event: Event) {
 		const input = event.target as HTMLInputElement;
@@ -529,7 +428,7 @@
 			uploadedFiles = [...uploadedFiles, fileData];
 		}
 		
-		saveBrainstormingData();
+		saveDocumentsData();
 		// Clear the input
 		input.value = '';
 	}
@@ -537,7 +436,7 @@
 	// Remove uploaded file
 	function removeUploadedFile(fileId: string) {
 		uploadedFiles = uploadedFiles.filter(f => f.id !== fileId);
-		saveBrainstormingData();
+		saveDocumentsData();
 	}
 
 	// Reset to first page when citations list changes significantly
@@ -565,7 +464,7 @@
 				
 				if (parsedCitations.length > 0) {
 					citations = [...citations, ...parsedCitations];
-					saveBrainstormingData();
+					saveDocumentsData();
 					alert(m.documents_bibtex_success({ count: parsedCitations.length, filename: file.name }));
 				} else {
 					alert(m.documents_bibtex_no_citations());
@@ -586,39 +485,27 @@
 			alert(m.documents_validation_required());
 			return;
 		}
-		saveBrainstormingData();
+		saveDocumentsData();
 		onNextStep();
 	}
 
-	function loadBrainstormingData() {
+	function loadDocumentsData() {
 		try {
-			// Load paper format from previous step
-			const savedFormat = localStorage.getItem('paperwriter-paper-format');
-			if (savedFormat) {
-				const format = JSON.parse(savedFormat);
-				paperFormat = {
-					paperType: format.paperType || 'research',
-					targetLength: format.targetLength || 5000
-				};
-			}
-			
-			// Load brainstorming data
-			const savedBrainstorming = localStorage.getItem('paperwriter-documents');
-			if (savedBrainstorming) {
-				const brainstormingData = JSON.parse(savedBrainstorming);
-				citations = brainstormingData.citations || [];
-				researchFocus = brainstormingData.researchFocus || '';
-				uploadedFiles = brainstormingData.uploadedFiles || [];
-				chatMessages = brainstormingData.chatMessages || [];
+			// Load documents data
+			const savedDocuments = localStorage.getItem(`paperwriter-draft-${draftId}-documents`);
+			if (savedDocuments) {
+				const documentsData = JSON.parse(savedDocuments);
+				citations = documentsData.citations || [];
+				uploadedFiles = documentsData.uploadedFiles || [];
 			}
 		} catch (error) {
-			console.error('Failed to load brainstorming data:', error);
+			console.error('Failed to load documents data:', error);
 		}
 	}
     
 	// Load saved data on mount
 	onMount(() => {
-		loadBrainstormingData();
+		loadDocumentsData();
 	});
 </script>
 

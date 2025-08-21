@@ -1,38 +1,44 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { flip } from 'svelte/animate';
-	import Card from '$lib/components/Card.svelte';
-	import Heading from '$lib/components/Heading.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import TextArea from '$lib/components/TextArea.svelte';
-	import Label from '$lib/components/Label.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import Card from '$lib/components/ui/Card.svelte';
+	import Heading from '$lib/components/ui/Heading.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import TextArea from '$lib/components/ui/TextArea.svelte';
+	import Label from '$lib/components/ui/Label.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import Icon from '@iconify/svelte';
 
     // i18n
     import { m } from '$lib/paraglide/messages.js';
     import { getLocale } from '$lib/paraglide/runtime.js';
 
-    import type { WorkflowStep, Citation } from './common';
+    import type { WorkflowStep, Citation, CitationContext } from '$lib/stores/drafts';
 	import { 
 		getTitleGenerationPrompt, 
 		getOutlineGenerationPrompt, 
 		getKeyPointsAndReferencesGenerationPrompt,
 		getTargetLanguageEnforcement,
 		getInterfaceLanguageEnforcement
-	} from './prompts';
-	import { OpenRouterClient, getOpenRouterSettings } from '$lib/utils/openRouter';
+	} from '$lib/utils/prompts';
+	import type { LLMClient } from '$lib/utils/llm';
 
     // Props
     let { 
+        draftId,
         currentStep, 
-        citations, 
+        citations,
+        llmClient,
+        llmConfigError,
         onNextStep, 
         onPreviousStep, 
         onGoToStep 
     }: { 
+        draftId: string;
         currentStep: WorkflowStep; 
-        citations: Citation[]; 
+        citations: Citation[];
+        llmClient: LLMClient | null;
+        llmConfigError: string | null;
         onNextStep: () => void;
         onPreviousStep: () => void;
         onGoToStep: (step: WorkflowStep) => void;
@@ -40,6 +46,7 @@
 
 	// State variables
 	let generatingTitle = $state(false);
+	let referenceSearchQueries = $state<Record<string, string>>({});
 
 	// Paper data
 	let paperTitle = $state('');
@@ -77,7 +84,7 @@
 	let targetLanguage = $state('English');
 	let citationsContext = $state<Array<{title: string; authors: string; year: number; abstract: string}>>([]);
 	let defaultOutlineSections = $state<OutlineSection[]>([]);
-	let openRouterSettings = $state<{apiKey: string; model: string; maxTokens: number} | null>(null);
+	// LLM client is passed as prop from parent
 	let researchFocus = $state('');
 
 	// Initialize default outline based on paper type
@@ -121,7 +128,7 @@
 				suggestedOutlines,
 				lastSaved: new Date().toISOString()
 			};
-			localStorage.setItem('paperwriter-outline-paper', JSON.stringify(draft));
+			localStorage.setItem(`paperwriter-draft-${draftId}-outline`, JSON.stringify(draft));
 		} catch (error) {
 			console.error('Failed to save structure paper:', error);
 		}
@@ -135,11 +142,8 @@
 		return paperOutline.reduce((total, section) => total + (section.wordCount || 0), 0);
 	});
 
-	// OpenRouter client instance
-	let openRouterClient: OpenRouterClient | null = null;
-
 	async function generateTitleSuggestions() {
-		if (citations.length === 0 || !openRouterClient) return;
+		if (citations.length === 0 || !llmClient || llmConfigError) return;
 
 		generatingTitle = true;
 		suggestedTitles = []; // Clear existing suggestions when regenerating
@@ -156,11 +160,7 @@
 				? `Generate 5 diverse academic paper titles in ${targetLanguage} based on the provided literature.`
 				: 'Generate 5 diverse academic paper titles based on the provided literature.';
 
-			const result = await openRouterClient.chatCompletion(systemPrompt, userPrompt, {
-				model: openRouterSettings!.model,
-				temperature: 0.8,
-				max_tokens: openRouterSettings!.maxTokens
-			});
+			const result = await llmClient.chatCompletion(systemPrompt, userPrompt);
 			
 			// Parse the generated titles (one per line)
 			suggestedTitles = result.content
@@ -204,14 +204,16 @@
 	}
 
 	async function generateOutlineSuggestions() {
-		if (citations.length === 0 || !openRouterClient) return;
+		if (citations.length === 0 || !llmClient || llmConfigError) return;
 
 		generatingOutline = true;
 		
 		try {
 			// Get the predefined sections for this paper type
 			const sectionsContext = defaultOutlineSections.map(section => ({
-				title: section.title
+				title: section.title,
+				keyPoints: [],
+				citations: []
 			}));
 
 			const systemPrompt = getOutlineGenerationPrompt(paperType, targetLength, citationsContext, sectionsContext, researchFocus, targetLanguage);
@@ -224,19 +226,8 @@
 				}>;
 			}
 
-			const parsedResponse = await openRouterClient.chatCompletionWithJSON<OutlineResponse>(
-				systemPrompt, 
-				userPrompt, 
-				{
-					model: openRouterSettings!.model,
-					temperature: 0.7,
-					max_tokens: openRouterSettings!.maxTokens
-				},
-				{
-					maxRetries: MAX_RETRIES,
-					retryDelay: RETRY_DELAY_MS
-				}
-			);
+			const result = await llmClient.chatCompletion(systemPrompt, userPrompt);
+			const parsedResponse: OutlineResponse = JSON.parse(result.content);
 
 			// Validate JSON structure
 			if (!parsedResponse.sections || !Array.isArray(parsedResponse.sections)) {
@@ -256,6 +247,8 @@
 				wordCount: section.wordCount || Math.round(targetLength / parsedResponse.sections.length)
 			}));
 
+			// Initialize search queries for all AI-generated sections
+			paperOutline.forEach(section => initializeSearchQuery(section.id));
 			saveStructurePaper();
 			
 			// After creating sections, automatically generate key points for each section
@@ -285,6 +278,8 @@
 
 	function createDefaultOutline() {
 		paperOutline = [...defaultOutlineSections];
+		// Initialize search queries for all sections
+		paperOutline.forEach(section => initializeSearchQuery(section.id));
 		saveStructurePaper();
 	}
 
@@ -298,6 +293,7 @@
 			wordCount: 500
 		};
 		paperOutline = [...paperOutline, newSection];
+		initializeSearchQuery(newSection.id);
 		saveStructurePaper();
 		
 		// Scroll to bottom of page after adding section
@@ -395,8 +391,47 @@
 		}
 	}
 
+	function initializeSearchQuery(sectionId: string) {
+		if (!(sectionId in referenceSearchQueries)) {
+			referenceSearchQueries[sectionId] = '';
+		}
+	}
+
+	function getFilteredCitations(sectionId: string) {
+		const searchQuery = referenceSearchQueries[sectionId]?.toLowerCase() || '';
+		if (!searchQuery) return citations;
+		
+		return citations.filter(citation => {
+			if (!citation) return false;
+			
+			// Check title (required field)
+			if (citation.title && citation.title.toLowerCase().includes(searchQuery)) {
+				return true;
+			}
+			
+			// Check authors array
+			if (citation.authors && Array.isArray(citation.authors)) {
+				if (citation.authors.some(author => author && author.toLowerCase().includes(searchQuery))) {
+					return true;
+				}
+			}
+			
+			// Check year
+			if (citation.year && citation.year.toString().includes(searchQuery)) {
+				return true;
+			}
+			
+			// Check abstract
+			if (citation.abstract && citation.abstract.toLowerCase().includes(searchQuery)) {
+				return true;
+			}
+			
+			return false;
+		});
+	}
+
 	async function generateKeyPointsAndReferencesForSection(sectionId: string) {
-		if (citations.length === 0 || !openRouterClient) return;
+		if (citations.length === 0 || !llmClient || llmConfigError) return;
 		
 		const section = paperOutline.find(s => s.id === sectionId);
 		if (!section) return;
@@ -428,19 +463,8 @@
 				suggestedCitationIndices: number[];
 			}
 
-			const parsedResponse = await openRouterClient.chatCompletionWithJSON<KeyPointsAndReferencesResponse>(
-				systemPrompt, 
-				userPrompt, 
-				{
-					model: openRouterSettings!.model,
-					temperature: 0.7,
-					max_tokens: openRouterSettings!.maxTokens
-				},
-				{
-					maxRetries: MAX_RETRIES,
-					retryDelay: RETRY_DELAY_MS
-				}
-			);
+			const result = await llmClient.chatCompletion(systemPrompt, userPrompt);
+			const parsedResponse: KeyPointsAndReferencesResponse = JSON.parse(result.content);
 
 			// Validate JSON structure
 			if (!parsedResponse.keyPoints || !Array.isArray(parsedResponse.keyPoints)) {
@@ -509,14 +533,14 @@
 	function loadStructurePaper() {
 		try {
 			// Load paper format to get paper type and target language
-			const formatSaved = localStorage.getItem('paperwriter-paper-format');
+			const formatSaved = localStorage.getItem(`paperwriter-draft-${draftId}-format`);
 			if (formatSaved) {
 				const format = JSON.parse(formatSaved);
 				paperType = format.paperType || 'research';
 				targetLanguage = format.targetLanguage || 'English';
 			}
 
-			const saved = localStorage.getItem('paperwriter-outline-paper');
+			const saved = localStorage.getItem(`paperwriter-draft-${draftId}-outline`);
 			if (saved) {
 				const structure = JSON.parse(saved);
 				paperTitle = structure.title || '';
@@ -538,7 +562,7 @@
 		
 		// Load common data for AI operations
 		try {
-			const formatSaved = localStorage.getItem('paperwriter-paper-format');
+			const formatSaved = localStorage.getItem(`paperwriter-draft-${draftId}-format`);
 			if (formatSaved) {
 				const format = JSON.parse(formatSaved);
 				targetLength = format.targetLength || 5000;
@@ -550,7 +574,7 @@
 
 		// Load research focus from previous step
 		try {
-			const focusSaved = localStorage.getItem('paperwriter-focus');
+			const focusSaved = localStorage.getItem(`paperwriter-draft-${draftId}-focus`);
 			if (focusSaved) {
 				const focusData = JSON.parse(focusSaved);
 				researchFocus = focusData.researchFocus || '';
@@ -570,15 +594,10 @@
 		// Initialize default outline sections once
 		defaultOutlineSections = initializeDefaultOutline(paperType);
 
-		// Load OpenRouter settings and initialize client once
-		openRouterSettings = getOpenRouterSettings();
-		if (openRouterSettings?.apiKey) {
-			openRouterClient = new OpenRouterClient({
-				apiKey: openRouterSettings.apiKey,
-				siteUrl: window.location.origin,
-				siteName: 'Paper Writer Assistant'
-			});
-		}
+		// Initialize search queries for existing sections loaded from localStorage
+		paperOutline.forEach(section => initializeSearchQuery(section.id));
+
+		// LLM client is passed as prop from parent
 	});
 </script>
 
@@ -601,7 +620,7 @@
                 </div>
                 <Button
                     onclick={generateTitleSuggestions}
-                    disabled={anyAIRunning() || citations.length === 0}
+                    disabled={anyAIRunning() || citations.length === 0 || !!llmConfigError}
                     variant="primary"
                     iconLeft={generatingTitle ? "heroicons:arrow-path" : "heroicons:sparkles"}
                 >
@@ -609,7 +628,17 @@
                 </Button>
             </div>
 
-            {#if citations.length === 0}
+            {#if llmConfigError}
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <Icon icon="heroicons:exclamation-triangle" class="w-5 h-5 text-red-600 mr-2" />
+                        <div>
+                            <p class="text-sm font-medium text-red-800">Configuration Required</p>
+                            <p class="text-sm text-red-700 mt-1">{llmConfigError}</p>
+                        </div>
+                    </div>
+                </div>
+            {:else if citations.length === 0}
                 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
                     <div class="flex items-center">
                         <Icon icon="heroicons:exclamation-triangle" class="w-5 h-5 text-amber-600 mr-2" />
@@ -724,7 +753,7 @@
                     <div class="flex flex-col sm:flex-row gap-4 justify-center max-w-lg mx-auto">
                         <Button
                             onclick={generateOutlineSuggestions}
-                            disabled={anyAIRunning() || citations.length === 0}
+                            disabled={anyAIRunning() || citations.length === 0 || !!llmConfigError}
                             variant="primary"
                             iconLeft="heroicons:sparkles"
                             class="flex-1"
@@ -770,7 +799,7 @@
                     <div class="flex items-center space-x-2">
                         <Button
                             onclick={regenerateAllWithAI}
-                            disabled={anyAIRunning() || citations.length === 0}
+                            disabled={anyAIRunning() || citations.length === 0 || !!llmConfigError}
                             variant="primary"
                             size="sm"
                             iconLeft={regeneratingAll ? "heroicons:arrow-path" : "heroicons:sparkles"}
@@ -874,7 +903,7 @@
                                     </Button>
                                     <Button
                                         onclick={() => generateKeyPointsAndReferencesForSection(section.id)}
-                                        disabled={anyAIRunning() || citations.length === 0}
+                                        disabled={anyAIRunning() || citations.length === 0 || !!llmConfigError}
                                         variant="secondary"
                                         size="sm"
                                         iconLeft="heroicons:sparkles"
@@ -912,15 +941,29 @@
                         {#if section.title !== 'Abstract'}
                             {#if citations.length > 0}
                                 <div>
-                                    <div class="mb-2">
+                                    <div class="mb-3">
                                         <Label for="">{m.outline_associated_references()}</Label>
                                         <p class="text-xs text-secondary-500 mt-1">
                                             {m.outline_references_auto_suggest()}
                                         </p>
                                     </div>
+                                    
+                                    <!-- Search Input -->
+                                    <div class="mb-3 relative">
+                                        <div class="absolute left-3 top-1/2 transform -translate-y-1/2">
+                                            <Icon icon="heroicons:magnifying-glass" class="w-4 h-4 text-secondary-400" />
+                                        </div>
+                                        <Input
+                                            bind:value={referenceSearchQueries[section.id]}
+                                            placeholder="Search references by title, author, year, or abstract..."
+                                            class="text-sm"
+                                        />
+                                    </div>
+									
                                     <div class="max-h-40 overflow-y-auto border border-secondary-200 rounded p-3">
                                         <div class="space-y-2">
-                                            {#each citations as citation, citationIndex}
+                                            {#each getFilteredCitations(section.id) as citation, filteredIndex}
+                                                {@const citationIndex = citations.findIndex(c => c.id === citation.id)}
                                                 <label class="flex items-start space-x-2 cursor-pointer p-2 rounded transition-colors {section.citationIndices.includes(citationIndex) ? 'bg-primary-100 border border-primary-200' : 'hover:bg-secondary-50'}">
                                                     <input
                                                         type="checkbox"
@@ -933,11 +976,17 @@
                                                         <p class="{section.citationIndices.includes(citationIndex) ? 'text-primary-700' : 'text-secondary-600'}">{citation.authors.join(', ')} ({citation.year})</p>
                                                     </div>
                                                 </label>
+                                            {:else}
+                                                <p class="text-sm text-secondary-500 italic text-center py-4">No references match your search</p>
                                             {/each}
                                         </div>
                                     </div>
                                     <p class="text-xs text-secondary-500 mt-1">
-                                        {m.outline_references_selected({ selected: section.citationIndices.length, total: citations.length })}
+                                        {#if referenceSearchQueries[section.id]}
+                                            Showing {getFilteredCitations(section.id).length} of {citations.length} references • {section.citationIndices.length} selected
+                                        {:else}
+                                            {m.outline_references_selected({ selected: section.citationIndices.length, total: citations.length })}
+                                        {/if}
                                     </p>
                                 </div>
                             {:else}

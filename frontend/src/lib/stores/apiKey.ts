@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import { OpenRouterClient } from '$lib/utils/openRouter.js';
+import { LLMClient } from '$lib/utils/llm.js';
 
 export const apiKey = writable<string>('');
 export const isValidApiKey = writable<boolean>(false);
@@ -24,7 +24,7 @@ apiKey.subscribe((key) => {
 
 export async function validateApiKey(key: string): Promise<boolean> {
 	try {
-		const client = new OpenRouterClient({ apiKey: key });
+		const client = new LLMClient({ apiKey: key });
 		const valid = await client.validateApiKey();
 		isValidApiKey.set(valid);
 		if (valid) {

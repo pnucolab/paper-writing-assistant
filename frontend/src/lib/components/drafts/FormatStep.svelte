@@ -2,17 +2,19 @@
     import { onMount } from 'svelte';
     import * as m from '$lib/paraglide/messages.js';
 
-    import Label from '$lib/components/Label.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import Card from '$lib/components/Card.svelte';
-	import Heading from '$lib/components/Heading.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Button from '$lib/components/Button.svelte';
+    import Label from '$lib/components/ui/Label.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import Card from '$lib/components/ui/Card.svelte';
+	import Heading from '$lib/components/ui/Heading.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 
 	// Props
 	let { 
+		draftId,
 		onNextStep,
 	}: { 
+		draftId: string;
 		onNextStep: () => void;
 	} = $props();
 
@@ -130,7 +132,7 @@
 				referenceCitationExample: referenceCitationExample(),
 				lastSaved: new Date().toISOString()
 			};
-			localStorage.setItem('paperwriter-paper-format', JSON.stringify(format));
+			localStorage.setItem(`paperwriter-draft-${draftId}-format`, JSON.stringify(format));
 		} catch (error) {
 			console.error('Failed to save paper format:', error);
 		}
@@ -157,7 +159,7 @@
 
 	function loadPaperFormat() {
 		try {
-			const saved = localStorage.getItem('paperwriter-paper-format');
+			const saved = localStorage.getItem(`paperwriter-draft-${draftId}-format`);
 			if (saved) {
 				const format = JSON.parse(saved);
 				paperType = format.paperType || 'research';

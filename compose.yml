@@ -2,7 +2,25 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+    volumes:
+      - frontend_data:/www
+    restart: "no"
+
+  caddy:
+    image: caddy:latest
+    depends_on:
+      frontend:
+        condition: service_completed_successfully
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - frontend_data:/www:ro
     ports:
-      - "3000:3000"
+      - "4426:80"
     restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+  frontend_data:

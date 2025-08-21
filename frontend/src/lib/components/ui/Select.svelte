@@ -13,6 +13,7 @@
 	}
 
 	interface Props {
+		id?: string;
 		value?: string | number;
 		label?: string;
 		placeholder?: string;
@@ -28,6 +29,7 @@
 	}
 
 	let {
+		id,
 		value = $bindable(''),
 		label,
 		placeholder,
@@ -41,8 +43,6 @@
 		optionGroups = [],
 		onchange
 	}: Props = $props();
-
-	let selectId = `select-${Math.random().toString(36).substr(2, 9)}`;
 
 	function getSelectClasses() {
 		const baseClasses = [
@@ -94,21 +94,9 @@
 </script>
 
 <div class="space-y-2">
-	{#if label}
-		<label 
-			for={selectId}
-			class={getLabelClasses()}
-		>
-			{label}
-			{#if required}
-				<span class="text-red-500">*</span>
-			{/if}
-		</label>
-	{/if}
-	
 	<div class="relative">
 		<select
-			id={selectId}
+			id={id}
 			bind:value
 			{disabled}
 			{required}

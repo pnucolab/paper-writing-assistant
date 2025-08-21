@@ -1,16 +1,16 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import TextArea from '$lib/components/TextArea.svelte';
-	import Card from '$lib/components/Card.svelte';
-	import Heading from '$lib/components/Heading.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Label from '$lib/components/Label.svelte';
+    import TextArea from '$lib/components/ui/TextArea.svelte';
+	import Card from '$lib/components/ui/Card.svelte';
+	import Heading from '$lib/components/ui/Heading.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Label from '$lib/components/ui/Label.svelte';
 	import Icon from '@iconify/svelte';
-	import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
-	import type { Citation } from './common';
-	import { OpenRouterClient, getOpenRouterSettings } from '$lib/utils/openRouter';
-	import { getFocusStepPrompt, getInterfaceLanguageEnforcement, type CitationContext } from './prompts';
+	import MarkdownRenderer from '$lib/components/ui/MarkdownRenderer.svelte';
+	import type { Citation, CitationContext } from '$lib/stores/drafts';
+	import type { LLMClient } from '$lib/utils/llm';
+	import { getFocusStepPrompt, getInterfaceLanguageEnforcement } from '$lib/utils/prompts';
 	
 	// i18n
 	import { m } from '$lib/paraglide/messages.js';
@@ -18,14 +18,21 @@
 
 	// Props
 	let { 
-		citations = [],
+		draftId,
+		llmClient,
+		llmConfigError,
 		onNextStep,
 		onPreviousStep
 	}: { 
-		citations?: Citation[];
+		draftId: string;
+		llmClient: LLMClient | null;
+		llmConfigError: string | null;
 		onNextStep: () => void;
 		onPreviousStep: () => void;
 	} = $props();
+
+	// Local state for citations loaded from localStorage
+	let citations = $state<Citation[]>([]);
 
 	// Load paper format from previous step
 	let paperFormat = $state<{paperType: string, targetLength: number, targetLanguage: string}>({paperType: 'research', targetLength: 5000, targetLanguage: 'English'});
@@ -33,8 +40,7 @@
 	// Research focus data
 	let researchFocus = $state('');
 	
-	// OpenRouter client instance
-	let openRouterClient: OpenRouterClient | null = null;
+	// LLM client is passed as prop
 	
 	// Chatbot data
 	let chatMessages = $state<Array<{role: 'user' | 'assistant', content: string, timestamp: string, error?: boolean}>>([]);
@@ -83,7 +89,7 @@
 				chatMessages,
 				lastSaved: new Date().toISOString()
 			};
-			localStorage.setItem('paperwriter-focus', JSON.stringify(focusData));
+			localStorage.setItem(`paperwriter-draft-${draftId}-focus`, JSON.stringify(focusData));
 		} catch (error) {
 			console.error('Failed to save focus data:', error);
 		}
@@ -105,7 +111,7 @@
 
 	// Send message to AI chatbot
 	async function sendChatMessage() {
-		if (!currentMessage.trim() || !openRouterClient) return;
+		if (!currentMessage.trim() || !llmClient || llmConfigError) return;
 		
 		const userMessage = currentMessage.trim();
 		currentMessage = '';
@@ -121,10 +127,6 @@
 		}];
 		
 		try {
-			const settings = getOpenRouterSettings();
-			if (!settings || !settings.apiKey) {
-				throw new Error(m.focus_api_not_configured());
-			}
 
 			// Build system prompt based on paper type and context
 			const paperType = paperFormat.paperType as keyof ReturnType<typeof researchPrompts>;
@@ -160,17 +162,12 @@
 			isStreamingMessage = true;
 			streamingMessageContent = '';
 
-			// Use the streaming method from OpenRouter utility
-			const assistantMessage = await openRouterClient.chatCompletionStream(
+			// Use the streaming method from LLM client
+			const assistantMessage = await llmClient.chatCompletionStream(
 				systemPrompt,
 				fullUserPrompt,
 				(chunk: string) => {
 					streamingMessageContent += chunk;
-				},
-				{
-					model: settings.model,
-					temperature: 0.7,
-					max_tokens: settings.maxTokens
 				}
 			);
 
@@ -300,7 +297,7 @@
 	function loadFocusData() {
 		try {
 			// Load paper format from previous step
-			const savedFormat = localStorage.getItem('paperwriter-paper-format');
+			const savedFormat = localStorage.getItem(`paperwriter-draft-${draftId}-format`);
 			if (savedFormat) {
 				const format = JSON.parse(savedFormat);
 				paperFormat = {
@@ -310,8 +307,15 @@
 				};
 			}
 			
+			// Load citations from documents step
+			const savedDocuments = localStorage.getItem(`paperwriter-draft-${draftId}-documents`);
+			if (savedDocuments) {
+				const documentsData = JSON.parse(savedDocuments);
+				citations = documentsData.citations || [];
+			}
+			
 			// Load focus data
-			const savedFocus = localStorage.getItem('paperwriter-focus');
+			const savedFocus = localStorage.getItem(`paperwriter-draft-${draftId}-focus`);
 			if (savedFocus) {
 				const focusData = JSON.parse(savedFocus);
 				researchFocus = focusData.researchFocus || '';
@@ -325,16 +329,6 @@
 	// Load saved data on mount
 	onMount(() => {
 		loadFocusData();
-		
-		// Initialize OpenRouter client
-		const settings = getOpenRouterSettings();
-		if (settings?.apiKey) {
-			openRouterClient = new OpenRouterClient({
-				apiKey: settings.apiKey,
-				siteUrl: window.location.origin,
-				siteName: 'Paper Writer Assistant'
-			});
-		}
 	});
 </script>
 
@@ -445,23 +439,34 @@
                 </div>
                 
                 <!-- Chat Input -->
+                {#if llmConfigError}
+                    <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div class="flex items-center">
+                            <Icon icon="heroicons:exclamation-triangle" class="w-5 h-5 text-red-600 mr-2" />
+                            <div>
+                                <p class="text-sm font-medium text-red-800">Configuration Required</p>
+                                <p class="text-sm text-red-700 mt-1">{llmConfigError}</p>
+                            </div>
+                        </div>
+                    </div>
+                {/if}
                 <div class="flex space-x-3">
                     <div class="flex-1">
                         <Input
                             bind:value={currentMessage}
-                            placeholder={m.focus_message_placeholder()}
+                            placeholder={llmConfigError ? 'Please configure API settings first' : m.focus_message_placeholder()}
                             onkeyup={(e: KeyboardEvent) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
                                     sendChatMessage();
                                 }
                             }}
-                            disabled={isGeneratingResponse || isStreamingMessage}
+                            disabled={isGeneratingResponse || isStreamingMessage || !!llmConfigError}
                         />
                     </div>
                     <Button
                         onclick={sendChatMessage}
-                        disabled={!currentMessage.trim() || isGeneratingResponse || isStreamingMessage}
+                        disabled={!currentMessage.trim() || isGeneratingResponse || isStreamingMessage || !!llmConfigError}
                         variant="primary"
                         iconLeft="heroicons:paper-airplane"
                     >

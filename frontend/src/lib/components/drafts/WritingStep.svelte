@@ -1,25 +1,32 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Card from '$lib/components/Card.svelte';
-	import Heading from '$lib/components/Heading.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import Card from '$lib/components/ui/Card.svelte';
+	import Heading from '$lib/components/ui/Heading.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import Icon from '@iconify/svelte';
-	import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
+	import MarkdownRenderer from '$lib/components/ui/MarkdownRenderer.svelte';
+	import DownloadOptions from '$lib/components/ui/DownloadOptions.svelte';
 
     // i18n
     import { m } from '$lib/paraglide/messages.js';
 
-    import type { Citation } from './common';
-	import { getSectionWritingPrompt, type CitationContext } from './prompts';
+    import type { Citation, CitationContext } from '$lib/stores/drafts';
+	import { getSectionWritingPrompt } from '$lib/utils/prompts';
 	import { generateReferencesSection } from '$lib/utils/citations';
-	import { OpenRouterClient, getOpenRouterSettings } from '$lib/utils/openRouter';
+	import type { LLMClient } from '$lib/utils/llm';
 
     // Props
     let { 
-        citations, 
+        draftId,
+        citations,
+        llmClient,
+        llmConfigError,
         onPreviousStep
     }: { 
-        citations: Citation[]; 
+        draftId: string;
+        citations: Citation[];
+        llmClient: LLMClient | null;
+        llmConfigError: string | null;
         onPreviousStep: () => void;
     } = $props();
 
@@ -36,7 +43,9 @@
 	// Combine generated sections into single content for display
 	$effect(() => {
 		if (generatedSections.length > 0) {
-			generatedContent = generatedSections.map(section => section.content).join('\n\n');
+			const combinedContent = generatedSections.map(section => section.content).join('\n\n');
+			// Normalize hyphens: replace non-breaking hyphens (‑) with regular hyphens (-)
+			generatedContent = combinedContent.replace(/‑/g, '-');
 		}
 	});
 
@@ -55,11 +64,8 @@
 	let includeDoi = $state(true);
 	let targetLanguage = $state('English');
 
-	// OpenRouter client
-	let openRouterClient: OpenRouterClient | null = null;
-
 	async function startAIWriting() {
-		if (!openRouterClient) {
+		if (!llmClient || llmConfigError) {
 			alert(m.writing_api_key_not_configured());
 			return;
 		}
@@ -74,21 +80,21 @@
 		isFinished = false;
 
 		try {
-			const settings = getOpenRouterSettings();
-			if (!settings?.apiKey) {
-				throw new Error(m.writing_api_key_not_configured());
-			}
-
 			// Step 1: Allocate Section Lengths
 			loadSectionAllocations();
 
 			// Step 2: Generate Sections Sequentially
-			await generateSectionsSequentially(settings);
+			await generateSectionsSequentially();
 
 			// Step 3: Generate References Section (programmatically)
-			generatedReferences = generateReferencesSection(citations, citationStyle, includeDoi);
+			const rawReferences = generateReferencesSection(citations, citationStyle, includeDoi);
+			// Normalize hyphens in references
+			generatedReferences = rawReferences.replace(/‑/g, '-');
 
 			isFinished = true;
+			
+			// Auto-save draft when generation is complete
+			await autoSaveDraft();
 		} catch (error) {
 			console.error('Failed to generate paper:', error);
 			alert(m.writing_generation_failed({ error: error instanceof Error ? error.message : m.writing_unknown_error() }));
@@ -105,7 +111,7 @@
 		}));
 	}
 
-	async function generateSectionsSequentially(settings: any) {
+	async function generateSectionsSequentially() {
 		for (let i = 0; i < paperOutline.length; i++) {
 			currentSectionIndex = i;
 			isGeneratingSection = true;
@@ -142,7 +148,7 @@
 			const sectionUserPrompt = `Write the "${section.title}" section with approximately ${wordCount} words.`;
 
 			let sectionContent = '';
-			await openRouterClient!.chatCompletionStream(
+			await llmClient!.chatCompletionStream(
 				sectionSystemPrompt,
 				sectionUserPrompt,
 				(chunk: string) => {
@@ -155,11 +161,6 @@
 						updatedSections[i] = { title: section.title, content: sectionContent, wordCount };
 					}
 					generatedSections = updatedSections;
-				},
-				{
-					model: settings.model,
-					temperature: settings.temperature,
-					max_tokens: settings.maxTokens
 				}
 			);
 
@@ -170,57 +171,62 @@
 		isGeneratingSection = false;
 	}
 
-	function finishWriting() {
-		// Save draft to localStorage
+	async function autoSaveDraft() {
+		// Auto-save writing content and mark draft as completed
 		try {
 			// Combine title, main content and references
 			const titleSection = `# ${paperTitle}\n\n`;
 			const fullContent = titleSection + generatedContent + '\n\n' + generatedReferences;
 			
-			const draft = {
-				id: `draft-${Date.now()}`,
-				title: paperTitle,
+			// Save to writing step storage
+			const writingData = {
 				content: fullContent,
-				paperType,
-				targetLength,
-				citations,
-				createdAt: new Date().toISOString(),
-				lastModified: new Date().toISOString(),
-				// Extended data for chat session
-				researchFocus,
-				paperOutline,
-				formatSettings: {
-					citationStyle,
-					includeDoi,
-					singleCitationExample,
-					multipleCitationExample,
-					referenceCitationExample
-				},
+				paperContent: fullContent, // For backward compatibility
 				sectionAllocations,
+				generatedSections,
+				generatedReferences,
 				generationMetadata: {
 					sectionsGenerated: generatedSections.length,
 					totalSections: paperOutline.length,
-					referencesCount: citations.length
-				}
+					referencesCount: citations.length,
+					completedAt: new Date().toISOString()
+				},
+				lastSaved: new Date().toISOString()
 			};
 			
-			// Get existing drafts or create new array
+			localStorage.setItem(`paperwriter-draft-${draftId}-writing`, JSON.stringify(writingData));
+
+			// Mark draft as completed in main drafts list
 			const existingDrafts = JSON.parse(localStorage.getItem('paperwriter-drafts') || '[]');
-			existingDrafts.push(draft);
-			localStorage.setItem('paperwriter-drafts', JSON.stringify(existingDrafts));
+			const draftIndex = existingDrafts.findIndex((d: any) => d.id === draftId);
+			
+			if (draftIndex !== -1) {
+				existingDrafts[draftIndex].isCompleted = true;
+				existingDrafts[draftIndex].currentStep = 'writing';
+				existingDrafts[draftIndex].lastModified = new Date().toISOString();
+				localStorage.setItem('paperwriter-drafts', JSON.stringify(existingDrafts));
+			}
 
-			// Clear workflow data
-			localStorage.removeItem('paperwriter-paper-format');
-			localStorage.removeItem('paperwriter-documents');
-			localStorage.removeItem('paperwriter-focus');
-			localStorage.removeItem('paperwriter-outline-paper');
-
-			// Navigate to drafts page
-			alert(m.writing_draft_saved_success());
-			window.location.href = `/drafts?id=${draft.id}`;
+			console.log('Draft auto-saved successfully to:', `paperwriter-draft-${draftId}-writing`);
+			console.log('Writing data saved:', {
+				contentLength: fullContent.length,
+				sectionsCount: generatedSections.length,
+				referencesLength: generatedReferences.length,
+				isCompleted: true
+			});
 		} catch (error) {
-			console.error('Failed to save draft:', error);
-			alert(m.writing_draft_save_failed());
+			console.error('Failed to auto-save draft:', error);
+		}
+	}
+
+	function finishWriting() {
+		// Navigate to revisions page for editing
+		try {
+			// Show success message and redirect
+			alert(m.writing_draft_saved_success());
+			window.location.href = `/revisions?id=${draftId}`;
+		} catch (error) {
+			console.error('Failed to navigate to revisions:', error);
 		}
 	}
 
@@ -231,7 +237,7 @@
 	function loadPaperData() {
 		try {
 			// Load paper title and outline
-			const outlineSaved = localStorage.getItem('paperwriter-outline-paper');
+			const outlineSaved = localStorage.getItem(`paperwriter-draft-${draftId}-outline`);
 			if (outlineSaved) {
 				const outlineData = JSON.parse(outlineSaved);
 				paperTitle = outlineData.title || 'Untitled Paper';
@@ -239,7 +245,7 @@
 			}
 
 			// Load paper format
-			const formatSaved = localStorage.getItem('paperwriter-paper-format');
+			const formatSaved = localStorage.getItem(`paperwriter-draft-${draftId}-format`);
 			if (formatSaved) {
 				const formatData = JSON.parse(formatSaved);
 				paperType = formatData.paperType || 'research';
@@ -253,10 +259,31 @@
 			}
 
 			// Load research focus
-			const focusSaved = localStorage.getItem('paperwriter-focus');
+			const focusSaved = localStorage.getItem(`paperwriter-draft-${draftId}-focus`);
 			if (focusSaved) {
 				const focusData = JSON.parse(focusSaved);
 				researchFocus = focusData.researchFocus || '';
+			}
+
+			// Load previously generated writing content if it exists
+			const writingSaved = localStorage.getItem(`paperwriter-draft-${draftId}-writing`);
+			if (writingSaved) {
+				const writingData = JSON.parse(writingSaved);
+				
+				// Restore writing state
+				writingStarted = true;
+				isFinished = true;
+				generatedReferences = writingData.generatedReferences || '';
+				sectionAllocations = writingData.sectionAllocations || [];
+				generatedSections = writingData.generatedSections || [];
+				
+				// The $effect will automatically update generatedContent from generatedSections
+				
+				console.log('Restored writing content from localStorage:', {
+					sectionsCount: generatedSections.length,
+					referencesLength: generatedReferences.length,
+					hasContent: !!writingData.content
+				});
 			}
 
 			// Citations are now used directly with full information
@@ -267,16 +294,6 @@
 
 	onMount(() => {
 		loadPaperData();
-		
-		// Initialize OpenRouter client
-		const settings = getOpenRouterSettings();
-		if (settings?.apiKey) {
-			openRouterClient = new OpenRouterClient({
-				apiKey: settings.apiKey,
-				siteUrl: window.location.origin,
-				siteName: 'Paper Writer Assistant'
-			});
-		}
 	});
 </script>
 
@@ -476,7 +493,7 @@
                                 
                                 <!-- Main content section -->
                                 {#if generatedContent}
-                                    <MarkdownRenderer content={generatedContent} />
+                                    <MarkdownRenderer content={generatedContent} class="mb-4" />
                                 {/if}
                                 
                                 <!-- References section -->
@@ -507,14 +524,25 @@
                     </div>
 
                     {#if isFinished}
-                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-                            <div class="flex items-center">
-                                <Icon icon="heroicons:check-circle" class="w-5 h-5 text-green-600 mr-2" />
-                                <span class="text-sm font-medium text-green-800">{m.writing_paper_completed()}</span>
+                        <div class="space-y-6">
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div class="flex items-center">
+                                    <Icon icon="heroicons:check-circle" class="w-5 h-5 text-green-600 mr-2" />
+                                    <span class="text-sm font-medium text-green-800">{m.writing_paper_completed()}</span>
+                                </div>
+                                <p class="text-sm text-green-700 mt-1">
+                                    {m.writing_review_instruction()}
+                                </p>
                             </div>
-                            <p class="text-sm text-green-700 mt-1">
-                                {m.writing_review_instruction()}
-                            </p>
+
+                            <!-- Download Options -->
+                            <DownloadOptions 
+                                draftId={draftId}
+                                projectTitle={paperTitle}
+                                manuscriptTitle={paperTitle}
+                                isCompleted={true}
+                                content={`# ${paperTitle}\n\n${generatedContent}\n\n${generatedReferences}`}
+                            />
                         </div>
                     {/if}
                 </div>
