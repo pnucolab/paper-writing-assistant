@@ -28,6 +28,10 @@
 
 	function switchLanguage(newLocale: string) {
 		setLocale(newLocale as any);
+		// Save language preference to localStorage
+		if (browser) {
+			localStorage.setItem('preferred-locale', newLocale);
+		}
 		showLanguageMenu = false;
 	}
 

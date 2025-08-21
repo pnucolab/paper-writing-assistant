@@ -2,8 +2,40 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import Sidebar from '$lib/components/ui/Sidebar.svelte';
+	import { browser } from '$app/environment';
+	import { onMount } from 'svelte';
+	import { setLocale, getLocale } from '$lib/paraglide/runtime.js';
 
 	let { children } = $props();
+
+	// Auto-detect user language on first visit
+	onMount(() => {
+		// Check if language preference is already saved
+		const savedLocale = localStorage.getItem('preferred-locale');
+		
+		if (!savedLocale) {
+			// Get browser language preference
+			const browserLanguage = navigator.language.toLowerCase();
+			const supportedLanguages = ['en', 'ko'];
+			
+			// Try exact match first (e.g., 'ko')
+			let detectedLanguage = supportedLanguages.find(lang => 
+				browserLanguage === lang || browserLanguage.startsWith(lang + '-')
+			);
+			
+			// Default to English if no match
+			if (!detectedLanguage) {
+				detectedLanguage = 'en';
+			}
+			
+			// Set the detected language
+			setLocale(detectedLanguage as any);
+			localStorage.setItem('preferred-locale', detectedLanguage);
+		} else {
+			// Use saved preference
+			setLocale(savedLocale as any);
+		}
+	});
 </script>
 
 <svelte:head>
