@@ -3,6 +3,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import Icon from '@iconify/svelte';
 	import { toKebabCase } from '$lib/utils/text';
+	import { m } from '$lib/paraglide/messages.js';
 
 	interface Props {
 		show?: boolean;
@@ -53,7 +54,7 @@
 
 <Modal
 	{show}
-	title="Create New Draft"
+	title={m.create_draft_modal_title()}
 	size="md"
 	onClose={handleClose}
 	closeOnBackdrop={!isCreating}
@@ -62,18 +63,18 @@
 	{#snippet children()}
 		<div class="space-y-4">
 			<p class="text-sm text-secondary-600">
-				Enter a draft identifier to help you organize your work.
+				{m.create_draft_modal_description()}
 			</p>
 			
 			<div>
 				<label for="draft-identifier" class="block text-sm font-medium text-secondary-700 mb-2">
-					Draft Identifier
+					{m.create_draft_identifier_label()}
 				</label>
 				<input
 					id="draft-identifier"
 					type="text"
 					bind:value={draftIdentifier}
-					placeholder="e.g., AI Ethics Research, Climate Study 2024"
+					placeholder={m.create_draft_identifier_placeholder()}
 					disabled={isCreating}
 					class="w-full px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-secondary-50"
 					onkeydown={handleKeydown}
@@ -82,14 +83,14 @@
 				{#if isValidInput && !isUnique}
 					<div class="mt-2 flex items-center text-red-600">
 						<Icon icon="heroicons:exclamation-triangle" class="w-4 h-4 mr-1" />
-						<span class="text-sm">This identifier is already in use</span>
+						<span class="text-sm">{m.create_draft_identifier_in_use()}</span>
 					</div>
 				{/if}
 				
 				{#if isValidInput && kebabId.length === 0}
 					<div class="mt-2 flex items-center text-amber-600">
 						<Icon icon="heroicons:exclamation-triangle" class="w-4 h-4 mr-1" />
-						<span class="text-sm">Please use letters and numbers only</span>
+						<span class="text-sm">{m.create_draft_letters_numbers_only()}</span>
 					</div>
 				{/if}
 			</div>
@@ -101,7 +102,7 @@
 					size="sm"
 					disabled={isCreating}
 				>
-					Cancel
+					{m.create_draft_cancel()}
 				</Button>
 				<Button
 					onclick={handleCreate}
@@ -109,7 +110,7 @@
 					size="sm"
 					disabled={!canCreate || isCreating}
 				>
-					{isCreating ? 'Creating...' : 'Create Draft'}
+					{isCreating ? m.create_draft_creating() : m.create_draft_create()}
 				</Button>
 			</div>
 		</div>

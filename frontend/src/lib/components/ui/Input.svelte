@@ -134,7 +134,11 @@
 	<!-- Help text or error message -->
 	{#if helpText || errorMessage}
 		<div class={getHelpTextClasses()}>
-			{errorMessage || helpText}
+			{#if errorMessage}
+				{errorMessage}
+			{:else}
+				{@html helpText}
+			{/if}
 		</div>
 	{/if}
 </div>

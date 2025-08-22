@@ -4,6 +4,7 @@ import remarkParse from 'remark-parse';
 import type { Citation } from '$lib/stores/drafts';
 import { listPlugin } from "@m2d/list";
 import { tablePlugin } from '@m2d/table';
+import { getUnifiedSettings } from '$lib/stores/settings';
 
 interface DraftData {
 	id: string;
@@ -18,6 +19,8 @@ interface DraftData {
 	content?: string;
 	createdAt: string;
 	lastModified: string;
+	modelName?: string;
+	providerType?: string;
 }
 
 /**
@@ -183,7 +186,20 @@ function generateTransparencyReportMarkdown(draftData: DraftData): string {
 	report.push('# AI-assisted Writing Transparency Report');
 	report.push('');
 	report.push(`**Manuscript Title:** ${draftData.manuscriptTitle}`);
-	report.push(`\n**Report Generated:** ${new Date().toUTCString()}`);
+	report.push(`**Report Generated:** ${new Date().toUTCString()}`);
+	
+	// Add AI model information
+	if (draftData.modelName || draftData.providerType) {
+		report.push('');
+		report.push('## AI MODEL INFORMATION');
+		if (draftData.modelName) {
+			report.push(`**Model Used:** ${draftData.modelName}`);
+		}
+		if (draftData.providerType) {
+			report.push(`**Provider:** ${draftData.providerType}`);
+		}
+	}
+	
 	report.push('');
 	
 	if (draftData.researchFocus) {
@@ -263,6 +279,10 @@ export function loadCompleteDraftData(draftId: string): DraftData | null {
 		if (writingData) {
 			const writing = JSON.parse(writingData);
 			draftData.content = writing.content || writing.paperContent;
+			
+			// Load model information from writing data (the actual model used during writing)
+			draftData.modelName = writing.modelName;
+			draftData.providerType = writing.providerType;
 		}
 
 		return draftData;

@@ -86,6 +86,40 @@ Guidelines:
 - You MUST NOT use tables in your answer - instead, use bullet points or numbered lists.`;
 }
 
+// Research Focus Generation from Chat History Prompt
+export function getFocusGenerationPrompt(
+	paperType: string,
+	targetLength: number,
+	citationsCount: number,
+	interfaceLanguage: string
+): string {
+	// Apply interface language enforcement for UI interaction
+	const languageEnforcement = getInterfaceLanguageEnforcement(interfaceLanguage, 'English');
+	
+	return `${languageEnforcement}You are an expert academic research assistant. Based on the conversation history below, write a comprehensive and focused research statement that:
+
+1. Synthesizes the key insights from the entire conversation
+2. Clearly articulates the research problem and objectives
+3. Highlights the research gap or contribution
+4. Is suitable for academic paper writing
+5. Is concise but comprehensive
+
+Paper Type: ${paperType}
+Target Length: ${targetLength} words
+Citations Available: ${citationsCount} references
+
+Requirements:
+- Format as bullet points for easy reading and editing
+- Focus on research objectives, methodology approach, and expected contributions
+- Synthesize discussion points rather than listing them
+- Make it suitable for guiding the paper writing process
+- Ensure clarity and academic rigor
+- Connect the research to the broader field context discussed
+- Highlight the significance and novelty of the proposed research
+
+Generate a well-structured research focus statement in bullet point format that captures the essence of the research discussion and provides clear direction for academic paper writing.`;
+}
+
 // Title Generation Prompt
 export function getTitleGenerationPrompt(
 	paperType: string,

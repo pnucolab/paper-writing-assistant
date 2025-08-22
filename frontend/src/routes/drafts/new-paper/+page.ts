@@ -25,8 +25,15 @@ export async function load({ url }): Promise<PageData> {
 		}
 	}
 
+	// During prerendering, we can't access searchParams, so return null for draftId
+	// The client-side component will handle extracting the ID from URL
+	let draftId: string | null = null;
+	if (browser) {
+		draftId = url.searchParams.get('id');
+	}
+
 	return {
-		draftId: url.searchParams.get('id'),
+		draftId,
 		llmSettings,
 		llmClient,
 		llmConfigError

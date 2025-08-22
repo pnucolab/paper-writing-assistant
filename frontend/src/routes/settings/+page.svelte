@@ -111,18 +111,18 @@
 
 	// Featured model IDs
 	const featuredModelIds = [
-		'openai/gpt-5-chat',
+		'openai/gpt-5',
 		'anthropic/claude-sonnet-4',
 		'google/gemini-2.5-pro',
 	];
 
-	// Academic models from OpenRouter
-	let academicModels = $state<any[]>([]);
+	// LLM models from OpenRouter
+	let llmModels = $state<any[]>([]);
 	
-	// Featured models with complete data from academic API
+	// Featured models with complete data from LLM API
 	let featuredModels = $derived(() => {
 		const featuredIds = new Set(featuredModelIds);
-		return academicModels
+		return llmModels
 			.filter(model => featuredIds.has(model.id))
 			.map(model => {
 				const providerId = model.name?.split(':')[0] || model.id.split('/')[0];
@@ -134,9 +134,9 @@
 			});
 	});
 
-	// Non-featured academic models  
+	// Non-featured LLM models  
 	let otherModels = $derived(() => {
-		return academicModels
+		return llmModels
 			.map(model => {
 				const providerId = model.name?.split(':')[0] || model.id.split('/')[0];
 				return {
@@ -148,30 +148,8 @@
 			});
 	});
 
-	let freeModels = $derived(() => {
-		return [
-			{
-				id: 'openai/gpt-oss-20b:free',
-				name: 'OpenAI: GPT-OSS 20B',
-				pricing: {
-					"prompt": "0",
-					"completion": "0",
-					"request": "0",
-					"image": "0",
-					"audio": "0",
-					"web_search": "0",
-					"internal_reasoning": "0",
-					"input_cache_read": "0",
-					"input_cache_write": "0"
-				},
-				provider: "OpenAI",
-				category: 'Free'
-			}
-		]
-	});
-
 	// All models combined
-	let allModels = $derived([...featuredModels(), ...otherModels(), ...freeModels()]);
+	let allModels = $derived([...featuredModels(), ...otherModels()]);
 
 	// Group models by category for dropdown
 	let modelsByCategory = $derived(() => {
@@ -211,7 +189,7 @@
 		// Subscribe to stores and update local state
 		providerType.subscribe(type => currentProviderType = type);
 		openRouterApiKey.subscribe(key => currentOpenRouterApiKey = key);
-		selectedModel.subscribe(model => currentSelectedModel = model?.id || 'openai/gpt-5-chat');
+		selectedModel.subscribe(model => currentSelectedModel = model?.id || 'openai/gpt-5');
 		customEndpoint.subscribe(endpoint => currentCustomEndpoint = endpoint || '');
 		customApiKey.subscribe(key => currentCustomApiKey = key);
 		customModelName.subscribe(name => currentCustomModelName = name || '');
@@ -220,41 +198,48 @@
 			currentMaxTokens = params.maxTokens;
 		});
 
-		fetchAcademicModels();
+		fetchLlmModels();
 		initialLoadComplete = true;
 	});
 
-	async function fetchAcademicModels() {
+	async function fetchLlmModels() {
 		loadingModels = true;
 		try {
 			// Check cache first
 			const cached = getCachedModels();
 			if (cached) {
-				academicModels = cached;
+				llmModels = cached;
 				loadingModels = false;
 				return;
 			}
 
-			const url = 'https://openrouter.ai/api/v1/models?category=academia';
+			const url = 'https://openrouter.ai/api/v1/models';
 			const response = await fetch(url);
 			const data = await response.json();
 			
 			if (data.data && Array.isArray(data.data)) {
-				const processedModels = data.data.map((model: any) => ({
+				// Filter models that support both temperature and tools parameters
+				const filteredModels = data.data.filter((model: any) => {
+					const supportedParams = model.supported_parameters || [];
+					return supportedParams.includes('tools');
+				});
+
+				const processedModels = filteredModels.map((model: any) => ({
 					id: model.id,
 					name: model.name || model.id.split('/').pop(),
 					context_length: model.context_length,
-					pricing: model.pricing
+					pricing: model.pricing,
+					supported_parameters: model.supported_parameters
 				}));
 				
-				academicModels = processedModels;
+				llmModels = processedModels;
 				cacheModels(processedModels);
 			}
 		} catch (error) {
-			console.error('Failed to fetch academic models:', error);
+			console.error('Failed to fetch LLM models:', error);
 			const cached = getCachedModels(true);
 			if (cached) {
-				academicModels = cached;
+				llmModels = cached;
 			}
 		} finally {
 			loadingModels = false;
@@ -414,6 +399,10 @@
 					activeTab={currentProviderType}
 					onTabChange={(tabId) => currentProviderType = tabId as ProviderType}
 				/>
+
+				<!-- Hidden anchor elements for prerendering -->
+				<span id="openrouter" style="position: absolute; top: -1px; opacity: 0;"></span>
+				<span id="custom" style="position: absolute; top: -1px; opacity: 0;"></span>
 
 				<!-- OpenRouter Tab Content -->
 				{#if currentProviderType === 'openrouter'}

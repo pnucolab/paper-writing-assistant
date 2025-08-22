@@ -14,6 +14,7 @@
 	import { getSectionWritingPrompt } from '$lib/utils/prompts';
 	import { generateReferencesSection } from '$lib/utils/citations';
 	import type { LLMClient } from '$lib/utils/llm';
+	import { getUnifiedSettings } from '$lib/stores/settings';
 
     // Props
     let { 
@@ -178,6 +179,20 @@
 			const titleSection = `# ${paperTitle}\n\n`;
 			const fullContent = titleSection + generatedContent + '\n\n' + generatedReferences;
 			
+			// Get current model information at time of writing
+			const settings = getUnifiedSettings();
+			let modelName = 'Unknown';
+			let providerType = 'unknown';
+			
+			if (settings) {
+				providerType = settings.providerType;
+				if (settings.providerType === 'openrouter' && settings.openrouter.selectedModel) {
+					modelName = settings.openrouter.selectedModel.name;
+				} else if (settings.providerType === 'custom' && settings.custom.modelName) {
+					modelName = settings.custom.modelName;
+				}
+			}
+
 			// Save to writing step storage
 			const writingData = {
 				content: fullContent,
@@ -185,6 +200,8 @@
 				sectionAllocations,
 				generatedSections,
 				generatedReferences,
+				modelName, // Save model info at top level for transparency report
+				providerType, // Save provider info at top level for transparency report
 				generationMetadata: {
 					sectionsGenerated: generatedSections.length,
 					totalSections: paperOutline.length,

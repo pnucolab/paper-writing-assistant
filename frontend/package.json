@@ -50,6 +50,7 @@
 		"mdast2docx": "^1.4.1",
 		"openai": "^5.12.2",
 		"remark-parse": "^11.0.0",
+		"svelte-tiptap": "^3.0.0",
 		"unified": "^11.0.5"
 	},
 	"pnpm": {

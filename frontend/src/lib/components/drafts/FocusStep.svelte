@@ -10,7 +10,7 @@
 	import MarkdownRenderer from '$lib/components/ui/MarkdownRenderer.svelte';
 	import type { Citation, CitationContext } from '$lib/stores/drafts';
 	import type { LLMClient } from '$lib/utils/llm';
-	import { getFocusStepPrompt, getInterfaceLanguageEnforcement } from '$lib/utils/prompts';
+	import { getFocusStepPrompt, getInterfaceLanguageEnforcement, getFocusGenerationPrompt } from '$lib/utils/prompts';
 	
 	// i18n
 	import { m } from '$lib/paraglide/messages.js';
@@ -48,6 +48,7 @@
 	let isGeneratingResponse = $state(false);
 	let streamingMessageContent = $state('');
 	let isStreamingMessage = $state(false);
+	let isGeneratingFocus = $state(false);
 
 	// Localized research prompts using i18n
 	let researchPrompts = $derived(() => ({
@@ -258,32 +259,72 @@
 	async function copyToClipboard(content: string) {
 		try {
 			await navigator.clipboard.writeText(content);
-			// Could add a toast notification here if needed
 		} catch (error) {
 			console.error('Failed to copy to clipboard:', error);
-			// Fallback for older browsers
-			const textArea = document.createElement('textarea');
-			textArea.value = content;
-			document.body.appendChild(textArea);
-			textArea.select();
-			document.execCommand('copy');
-			document.body.removeChild(textArea);
 		}
 	}
 
-	// Copy message content to research focus textarea
-	function copyToResearchFocus(content: string) {
-		// Remove markdown formatting for cleaner text in the textarea
-		const cleanContent = content
-			.replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
-			.replace(/\*(.*?)\*/g, '$1') // Remove italic formatting
-			.replace(/`(.*?)`/g, '$1') // Remove inline code formatting
-			.replace(/^#+\s/gm, '') // Remove heading markers
-			.replace(/^[-*]\s/gm, '• ') // Convert list markers to bullets
-			.trim();
-		researchFocus = cleanContent;
-		saveFocusData();
+	// Generate research focus based on entire chat history
+	async function generateResearchFocus() {
+		if (!llmClient || llmConfigError || chatMessages.length === 0) return;
+		
+		// Show confirmation if there's existing research focus
+		if (researchFocus.trim() && !confirm(m.focus_generate_confirm())) {
+			return;
+		}
+		
+		isGeneratingFocus = true;
+		researchFocus = ''; // Clear current content to show streaming
+		
+		try {
+			// Build the conversation history
+			const conversationHistory = chatMessages
+				.filter(m => !m.error)
+				.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+				.join('\n\n');
+			
+			// Get the focus generation prompt with proper language enforcement
+			const systemPrompt = getFocusGenerationPrompt(
+				paperFormat.paperType,
+				paperFormat.targetLength,
+				citations.length,
+				getLocale()
+			);
+
+			const userPrompt = `Based on this research conversation, generate a comprehensive research focus statement:
+
+${conversationHistory}`;
+
+			// Generate the research focus with streaming
+			const response = await llmClient.chatCompletionStream(
+				systemPrompt,
+				userPrompt,
+				(chunk: string) => {
+					// Stream chunks directly to the research focus textarea
+					researchFocus += chunk;
+				}
+			);
+			
+			// Clean up the final response
+			const cleanContent = response
+				.replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
+				.replace(/\*(.*?)\*/g, '$1') // Remove italic formatting
+				.replace(/`(.*?)`/g, '$1') // Remove inline code formatting
+				.replace(/^#+\s/gm, '') // Remove heading markers
+				.replace(/^[-*]\s/gm, '• ') // Convert list markers to bullets
+				.trim();
+				
+			researchFocus = cleanContent;
+			saveFocusData();
+			
+		} catch (error) {
+			console.error('Failed to generate research focus:', error);
+			alert(`Error generating research focus: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		} finally {
+			isGeneratingFocus = false;
+		}
 	}
+
 
     function proceedToNextStep() {
 		if (!canProceedToNextStep()) {
@@ -344,13 +385,22 @@
         <div class="space-y-6">
             <!-- Research Focus Textbox -->
             <div>
-                <Label for="research-focus">{m.focus_research_focus_label()}</Label>
+                <div class="flex items-center space-x-2 mb-2">
+                    <Label for="research-focus">{m.focus_research_focus_label()}</Label>
+                    {#if isGeneratingFocus}
+                        <div class="flex items-center space-x-2">
+                            <Icon icon="heroicons:arrow-path" class="w-4 h-4 animate-spin text-primary-600" />
+                            <span class="text-sm text-primary-600">{m.focus_generating_focus()}</span>
+                        </div>
+                    {/if}
+                </div>
                 <TextArea
                     id="research-focus"
                     bind:value={researchFocus}
                     placeholder={m.focus_research_focus_placeholder()}
-                    rows={4}
+                    rows={8}
                     onkeyup={() => saveFocusData()}
+                    disabled={isGeneratingFocus}
                 />
                 <p class="text-sm text-secondary-500 mt-1">
                     {m.focus_research_focus_help()}
@@ -394,20 +444,13 @@
                                         </p>
                                         <!-- Hover buttons for AI messages (non-error, non-user) -->
                                         {#if message.role === 'assistant' && !message.error}
-                                            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex justify-end space-x-1">
+                                            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex justify-end">
                                                 <button
                                                     onclick={() => copyToClipboard(message.content)}
                                                     class="p-1 bg-secondary-100 hover:bg-secondary-200 rounded border border-secondary-300 transition-colors"
                                                     title={m.focus_copy_clipboard()}
                                                 >
                                                     <Icon icon="heroicons:clipboard" class="w-3 h-3 text-secondary-600" />
-                                                </button>
-                                                <button
-                                                    onclick={() => copyToResearchFocus(message.content)}
-                                                    class="p-1 bg-primary-100 hover:bg-primary-200 rounded border border-primary-300 transition-colors"
-                                                    title={m.focus_copy_to_focus()}
-                                                >
-                                                    <Icon icon="heroicons:document-text" class="w-3 h-3 text-primary-600" />
                                                 </button>
                                             </div>
                                         {/if}
@@ -472,17 +515,29 @@
                     >
                         {m.focus_send_button()}
                     </Button>
-                    {#if chatMessages.length > 0}
+                </div>
+                
+                <!-- Chat Action Buttons -->
+                {#if chatMessages.length > 0}
+                    <div class="flex justify-center space-x-3">
+                        <Button
+                            onclick={generateResearchFocus}
+                            disabled={isGeneratingResponse || isStreamingMessage || isGeneratingFocus || !!llmConfigError}
+                            variant="secondary"
+                            iconLeft="heroicons:sparkles"
+                        >
+                            {isGeneratingFocus ? m.focus_generating_focus() : m.focus_generate_from_chat()}
+                        </Button>
                         <Button
                             onclick={clearChatHistory}
                             disabled={isGeneratingResponse || isStreamingMessage}
                             variant="secondary"
-                            iconLeft="heroicons:trash"
+                            iconLeft="heroicons:arrow-path"
                         >
-                            {m.focus_clear_button()}
+                            {m.focus_reset_chat()}
                         </Button>
-                    {/if}
-                </div>
+                    </div>
+                {/if}
                 
                 <!-- Quick Actions -->
                 {#if chatMessages.length > 0}

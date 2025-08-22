@@ -56,13 +56,37 @@
 		return 'format';
 	}
 
-	// Citation validation
-	function validateStepAccess(step: WorkflowStep): WorkflowStep {
-		// If trying to access outline or writing without citations, redirect to documents
-		if ((step === 'outline' || step === 'writing') && citations.length === 0) {
-			return 'documents';
+	// Step completion tracking
+	function isStepCompleted(step: WorkflowStep): boolean {
+		if (!currentDraft) return false;
+		
+		// Check if localStorage data exists for this step
+		try {
+			const stepData = localStorage.getItem(`paperwriter-draft-${currentDraft.id}-${step}`);
+			return stepData !== null && stepData !== '';
+		} catch (error) {
+			console.error('Failed to check step completion:', error);
+			return false;
 		}
-		return step;
+	}
+
+	// Step validation - users can only access completed steps, current step, or next step
+	function validateStepAccess(step: WorkflowStep): WorkflowStep {
+		if (!currentDraft) return step;
+		
+		const stepOrder: WorkflowStep[] = ['format', 'documents', 'focus', 'outline', 'writing'];
+		const currentStepIndex = stepOrder.indexOf(currentDraft.currentStep);
+		const targetStepIndex = stepOrder.indexOf(step);
+		
+		// Allow access to completed steps, current step, or the immediate next step
+		if (isStepCompleted(step) || 
+			step === currentDraft.currentStep || 
+			targetStepIndex === currentStepIndex + 1) {
+			return step;
+		}
+		
+		// If trying to access a future step beyond the next one, redirect to current step
+		return currentDraft.currentStep;
 	}
 
 	// Navigation functions
@@ -150,9 +174,9 @@
 	}
 
 	// Load citations from localStorage for this draft
-	function loadDraftCitations() {
+	function loadDraftCitations(draftId: string) {
 		try {
-			const saved = localStorage.getItem(`paperwriter-draft-${data.draftId}-documents`);
+			const saved = localStorage.getItem(`paperwriter-draft-${draftId}-documents`);
 			if (saved) {
 				const draftData = JSON.parse(saved);
 				citations = draftData.citations || [];
@@ -187,8 +211,15 @@
 	onMount(() => {
 		loadDrafts();
 		
+		// Get draft ID - from load function or extract from URL on client-side
+		let draftId = data.draftId;
+		if (!draftId && browser) {
+			const urlParams = new URLSearchParams(window.location.search);
+			draftId = urlParams.get('id');
+		}
+		
 		// Find the current draft
-		const draft = drafts.find(d => d.id === data.draftId);
+		const draft = drafts.find(d => d.id === draftId);
 		if (!draft) {
 			// Draft not found, redirect to drafts list
 			goto('/drafts');
@@ -196,7 +227,7 @@
 		}
 		
 		currentDraft = draft;
-		loadDraftCitations();
+		loadDraftCitations(draftId!);
 
 		// Set initial step from URL hash or draft's current step
 		const hashStep = getStepFromHash();
@@ -279,6 +310,7 @@
 			steps={steps()}
 			onStepClick={goToStep}
 			allowNavigation={true}
+			isStepCompleted={isStepCompleted}
 			class="mb-8" 
 		/>
 
