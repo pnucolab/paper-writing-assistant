@@ -5,10 +5,12 @@
 	interface Props {
 		show?: boolean;
 		title?: string;
-		size?: 'sm' | 'md' | 'lg' | 'xl';
+		size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
 		onClose?: () => void;
 		showCloseButton?: boolean;
 		closeOnBackdrop?: boolean;
+		maxHeight?: string;
+		scrollable?: boolean;
 		children?: any;
 	}
 
@@ -19,6 +21,8 @@
 		onClose = () => {},
 		showCloseButton = true,
 		closeOnBackdrop = true,
+		maxHeight = '80vh',
+		scrollable = true,
 		children
 	}: Props = $props();
 
@@ -27,7 +31,10 @@
 		sm: 'max-w-sm',
 		md: 'max-w-md',
 		lg: 'max-w-lg',
-		xl: 'max-w-xl'
+		xl: 'max-w-xl',
+		'2xl': 'max-w-2xl',
+		'3xl': 'max-w-3xl',
+		'4xl': 'max-w-4xl'
 	};
 
 	function handleBackdropClick(e: MouseEvent) {
@@ -65,9 +72,12 @@
 		aria-modal="true"
 		aria-labelledby={title ? 'modal-title' : undefined}
 	>
-		<div class="bg-white rounded-lg shadow-xl w-full {sizeClasses[size]} mx-4">
+		<div 
+			class="bg-white rounded-lg shadow-xl w-full {sizeClasses[size]} mx-4 flex flex-col"
+			style="max-height: {maxHeight};"
+		>
 			{#if title || showCloseButton}
-				<div class="flex items-center justify-between p-6 border-b border-secondary-200">
+				<div class="flex items-center justify-between p-6 border-b border-secondary-200 flex-shrink-0">
 					{#if title}
 						<h2 id="modal-title" class="text-xl font-semibold text-secondary-900">{title}</h2>
 					{/if}
@@ -85,7 +95,7 @@
 				</div>
 			{/if}
 			
-			<div class="p-6">
+			<div class="p-6 {scrollable ? 'overflow-y-auto flex-1' : ''}">
 				{@render children?.()}
 			</div>
 		</div>

@@ -57,8 +57,68 @@
 		</div>
 	</div>
 
+	<!-- Rationale Section - Why This Tool Exists -->
+	<div class="py-20 bg-secondary-50 border-t border-secondary-200">
+		<div class="max-w-7xl mx-auto px-6">
+			<div class="text-center mb-16">
+				<h2 class="text-3xl font-semibold text-secondary-900 mb-4">
+					{m.home_rationale_title()}
+				</h2>
+				<p class="text-lg text-secondary-600 max-w-3xl mx-auto">
+					{m.home_rationale_subtitle()}
+				</p>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+				<!-- Traceable AI Interactions -->
+				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
+					<div class="w-10 h-10 bg-green-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-700 transition-colors duration-200">
+						<Icon icon="heroicons:document-check" class="w-5 h-5" />
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_traceable_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed">
+						{m.home_rationale_traceable_description()}
+					</p>
+				</div>
+
+				<!-- Human-in-the-Loop Design -->
+				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
+					<div class="w-10 h-10 bg-amber-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-amber-700 transition-colors duration-200">
+						<Icon icon="heroicons:users" class="w-5 h-5" />
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_human_control_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed">
+						{m.home_rationale_human_control_description()}
+					</p>
+				</div>
+
+				<!-- Lower Language Barriers -->
+				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
+					<div class="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-700 transition-colors duration-200">
+						<Icon icon="heroicons:language" class="w-5 h-5" />
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_language_barrier_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed">
+						{m.home_rationale_language_barrier_description()}
+					</p>
+				</div>
+
+				<!-- Scientific Integrity -->
+				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
+					<div class="w-10 h-10 bg-purple-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-700 transition-colors duration-200">
+						<Icon icon="heroicons:academic-cap" class="w-5 h-5" />
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_quality_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed">
+						{m.home_rationale_quality_description()}
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- Features Section -->
-	<div class="py-20">
+	<div class="py-20 bg-white">
 		<div class="max-w-7xl mx-auto px-6">
 			<div class="text-center mb-16">
 				<span class="inline-block px-3 py-1 text-xs font-medium bg-primary-100 text-primary-800 rounded-full mb-4">
@@ -121,7 +181,7 @@
 	</div>
 
 	<!-- Process Section -->
-	<div class="py-20 bg-white border-t border-secondary-200">
+	<div class="py-20 bg-secondary-50 border-t border-secondary-200">
 		<div class="max-w-7xl mx-auto px-6">
 			<div class="text-center mb-16">
 				<h2 class="text-3xl font-semibold text-secondary-900 mb-4">
@@ -132,45 +192,46 @@
 				</p>
 			</div>
 
-			<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-				<div class="relative">
-					<div class="bg-secondary-50 rounded-lg p-6 border border-secondary-200 h-full">
-						<div class="w-10 h-10 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-semibold text-lg mb-4">
-							1
-						</div>
-						<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_process_step1_title()}</h3>
-						<p class="text-secondary-600 text-sm leading-relaxed">
-							{m.home_process_step1_description()}
-						</p>
+			<div class="flex flex-col lg:flex-row items-stretch gap-8">
+				<!-- Step 1 -->
+				<div class="bg-white rounded-lg p-6 border border-secondary-200 shadow-sm flex-1 flex flex-col">
+					<div class="w-10 h-10 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-semibold text-lg mb-4">
+						1
 					</div>
-					<!-- Arrow -->
-					<div class="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2">
-						<Icon icon="heroicons:arrow-right" class="w-6 h-6 text-secondary-400" />
-					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_process_step1_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed flex-1">
+						{m.home_process_step1_description()}
+					</p>
 				</div>
 
-				<div class="relative">
-					<div class="bg-secondary-50 rounded-lg p-6 border border-secondary-200 h-full">
-						<div class="w-10 h-10 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-semibold text-lg mb-4">
-							2
-						</div>
-						<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_process_step2_title()}</h3>
-						<p class="text-secondary-600 text-sm leading-relaxed">
-							{m.home_process_step2_description()}
-						</p>
-					</div>
-					<!-- Arrow -->
-					<div class="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2">
-						<Icon icon="heroicons:arrow-right" class="w-6 h-6 text-secondary-400" />
-					</div>
+				<!-- Arrow -->
+				<div class="hidden lg:flex items-center justify-center">
+					<Icon icon="heroicons:arrow-right" class="w-6 h-6 text-secondary-400" />
 				</div>
 
-				<div class="bg-secondary-50 rounded-lg p-6 border border-secondary-200 h-full">
+				<!-- Step 2 -->
+				<div class="bg-white rounded-lg p-6 border border-secondary-200 shadow-sm flex-1 flex flex-col">
+					<div class="w-10 h-10 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-semibold text-lg mb-4">
+						2
+					</div>
+					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_process_step2_title()}</h3>
+					<p class="text-secondary-600 text-sm leading-relaxed flex-1">
+						{m.home_process_step2_description()}
+					</p>
+				</div>
+
+				<!-- Arrow -->
+				<div class="hidden lg:flex items-center justify-center">
+					<Icon icon="heroicons:arrow-right" class="w-6 h-6 text-secondary-400" />
+				</div>
+
+				<!-- Step 3 -->
+				<div class="bg-white rounded-lg p-6 border border-secondary-200 shadow-sm flex-1 flex flex-col">
 					<div class="w-10 h-10 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-semibold text-lg mb-4">
 						3
 					</div>
 					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_process_step3_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
+					<p class="text-secondary-600 text-sm leading-relaxed flex-1">
 						{m.home_process_step3_description()}
 					</p>
 				</div>
@@ -178,65 +239,6 @@
 		</div>
 	</div>
 
-	<!-- Rationale Section -->
-	<div class="py-20 bg-secondary-50 border-t border-secondary-200">
-		<div class="max-w-7xl mx-auto px-6">
-			<div class="text-center mb-16">
-				<h2 class="text-3xl font-semibold text-secondary-900 mb-4">
-					{m.home_rationale_title()}
-				</h2>
-				<p class="text-lg text-secondary-600 max-w-3xl mx-auto">
-					{m.home_rationale_subtitle()}
-				</p>
-			</div>
-
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-				<!-- Traceable AI Interactions -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-green-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-700 transition-colors duration-200">
-						<Icon icon="heroicons:document-check" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_traceable_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_rationale_traceable_description()}
-					</p>
-				</div>
-
-				<!-- Human-in-the-Loop Design -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-amber-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-amber-700 transition-colors duration-200">
-						<Icon icon="heroicons:users" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_human_control_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_rationale_human_control_description()}
-					</p>
-				</div>
-
-				<!-- Lower Language Barriers -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-700 transition-colors duration-200">
-						<Icon icon="heroicons:language" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_language_barrier_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_rationale_language_barrier_description()}
-					</p>
-				</div>
-
-				<!-- Scientific Integrity -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-purple-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-700 transition-colors duration-200">
-						<Icon icon="heroicons:academic-cap" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_quality_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_rationale_quality_description()}
-					</p>
-				</div>
-			</div>
-		</div>
-	</div>
 
 	<!-- CTA Section -->
 	<div class="py-20 bg-primary-600 text-white">

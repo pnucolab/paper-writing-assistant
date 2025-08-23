@@ -26,12 +26,12 @@
 
 	// Paper types
     let paperTypes = $derived([
-        { value: 'research', label: m.format_paper_type_research() },
-        { value: 'review', label: m.format_paper_type_review() },
-        { value: 'perspective', label: m.format_paper_type_perspective() },
-        { value: 'protocol', label: m.format_paper_type_protocol() },
-        { value: 'reply', label: m.format_paper_type_reply() },
-        { value: 'letter', label: m.format_paper_type_letter() }
+        { value: 'research', label: 'Research Article' },
+        { value: 'review', label: 'Review Article' },
+        { value: 'perspective', label: 'Perspective' },
+        { value: 'protocol', label: 'Protocol' },
+        { value: 'reply', label: 'Reply' },
+        { value: 'letter', label: 'Letter' }
     ]);
 
 	// Citation formatting state

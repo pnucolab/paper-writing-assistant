@@ -5,17 +5,14 @@
 	import Card from '$lib/components/ui/Card.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Icon from '@iconify/svelte';
-	import EnhancedTiptapEditor from '$lib/components/editor/EnhancedTiptapEditor.svelte';
+	import RevisionEditor from '$lib/components/editor/RevisionEditor.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
 	import FileDrop from '$lib/components/ui/FileDrop.svelte';
 	// i18n
 	import { m } from '$lib/paraglide/messages.js';
-	
-	// OpenRouter integration
-	import { LLMClient, getLLMSettings } from '$lib/utils/llm';
-	
-	// Markdown processing
+	import { getRevisionChatbotPrompt } from '$lib/utils/prompts';
 	import { marked } from 'marked';
+	import { LLMClient, getLLMSettings } from '$lib/utils/llm';
 
 	interface RevisionProject {
 		id: string;
@@ -28,6 +25,7 @@
 		lastModified: string;
 		aiSuggestions?: AISuggestion[];
 		validationResults?: ValidationResult[];
+		aiProcessed?: boolean; // Whether automatic AI processing has been completed
 	}
 
 	interface AISuggestion {
@@ -70,24 +68,18 @@
 	let showUploadModal = $state(false);
 	let showImportModal = $state(false);
 	let availableDrafts = $state<Draft[]>([]);
-	let isGeneratingSuggestions = $state(false);
-	let isValidating = $state(false);
-	let llmClient = $state<LLMClient | null>(null);
-	let hasValidLLMConfig = $state(false);
+	let showHelpMessage = $state(false);
+	
+	// Chatbot state
+	let showChatbotModal = $state(false);
+	let chatMessage = $state('');
+	let chatHistory = $state<Array<{role: 'user' | 'assistant', message: string}>>([
+		{ role: 'assistant', message: m.chatbot_welcome() }
+	]);
+	let isSendingMessage = $state(false);
 
 	// File upload (handled by FileDrop component)
 
-	// Check LLM configuration
-	function checkLLMConfiguration() {
-		try {
-			const settings = getLLMSettings();
-			llmClient = new LLMClient(settings);
-			hasValidLLMConfig = true;
-		} catch (error) {
-			hasValidLLMConfig = false;
-			llmClient = null;
-		}
-	}
 
 	// Load revision projects from localStorage
 	function loadRevisionProjects() {
@@ -161,7 +153,7 @@
 				content = await file.text();
 			} else if (fileExtension === '.docx') {
 				// For now, show error for DOCX - would need mammoth.js or similar
-				alert('DOCX support coming soon. Please use .md or .txt files.');
+				alert(m.revisions_docx_coming_soon());
 				return;
 			}
 
@@ -193,7 +185,7 @@
 			// Load complete draft data
 			const draftData = loadCompleteDraftData(draft.id);
 			if (!draftData?.content) {
-				alert('No content found in draft');
+				alert(m.revisions_no_content_in_draft());
 				return null;
 			}
 
@@ -217,7 +209,7 @@
 
 		} catch (error) {
 			console.error('Failed to import draft:', error);
-			alert('Failed to import draft');
+			alert(m.revisions_import_draft_failed());
 			return null;
 		}
 	}
@@ -248,88 +240,17 @@
 	}
 
 	// Select project
-	function selectProject(project: RevisionProject) {
+	async function selectProject(project: RevisionProject) {
 		selectedProject = project;
 		// TiptapEditor handles markdown directly, no need to convert
 		editorContent = project.content;
 		
+		// Update chatbot context
+		updateChatContextForProject();
+		
 		// Update URL hash for bookmarking/sharing
 		if (browser) {
 			window.location.hash = project.id;
-		}
-	}
-
-	// Generate AI suggestions
-	async function generateAISuggestions() {
-		if (!selectedProject || !llmClient) return;
-
-		isGeneratingSuggestions = true;
-		try {
-			const prompt = `Please analyze the following academic paper and provide revision suggestions. Focus on:
-1. Grammar and language clarity
-2. Structural improvements
-3. Content gaps or weaknesses
-4. Citation and referencing issues
-
-Paper content:
-${selectedProject.content}
-
-Provide specific, actionable suggestions with locations where possible.`;
-
-			const response = await llmClient.chatCompletion(
-				'You are an expert academic writing assistant.',
-				prompt
-			);
-			
-			// Parse AI response into structured suggestions (simplified for now)
-			const suggestions: AISuggestion[] = [{
-				id: crypto.randomUUID(),
-				type: 'structure',
-				severity: 'medium',
-				title: 'AI Analysis Complete',
-				description: 'AI has analyzed your paper',
-				suggestion: response.content,
-				applied: false
-			}];
-
-			selectedProject.aiSuggestions = suggestions;
-			selectedProject.lastModified = new Date().toISOString();
-			saveRevisionProjects();
-
-		} catch (error) {
-			console.error('Failed to generate AI suggestions:', error);
-			alert('Failed to generate AI suggestions');
-		} finally {
-			isGeneratingSuggestions = false;
-		}
-	}
-
-	// Validate content with web browsing
-	async function validateContent() {
-		if (!selectedProject || !llmClient) return;
-
-		isValidating = true;
-		try {
-			// This would integrate with web browsing capabilities
-			// For now, we'll simulate the process
-			const validationResults: ValidationResult[] = [{
-				id: crypto.randomUUID(),
-				type: 'fact_check',
-				status: 'valid',
-				title: 'Content Validation',
-				description: 'Content validation completed (simulated)',
-				sources: []
-			}];
-
-			selectedProject.validationResults = validationResults;
-			selectedProject.lastModified = new Date().toISOString();
-			saveRevisionProjects();
-
-		} catch (error) {
-			console.error('Failed to validate content:', error);
-			alert('Failed to validate content');
-		} finally {
-			isValidating = false;
 		}
 	}
 
@@ -370,6 +291,30 @@ Provide specific, actionable suggestions with locations where possible.`;
 			hour: '2-digit',
 			minute: '2-digit'
 		});
+	}
+
+	// Download as Markdown
+	function downloadAsMarkdown(project: RevisionProject) {
+		const blob = new Blob([project.content], { type: 'text/markdown' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `${project.title}.md`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+	// Download as DOCX using proper DOCX generation
+	async function downloadAsDocx(project: RevisionProject) {
+		try {
+			const { downloadDocxFile } = await import('$lib/utils/downloads');
+			await downloadDocxFile(project.content, project.title);
+		} catch (error) {
+			console.error('Failed to download DOCX:', error);
+			alert(m.revisions_docx_generation_failed());
+		}
 	}
 
 	// Handle URL query parameters and hash for automatic project creation/opening
@@ -434,15 +379,113 @@ Provide specific, actionable suggestions with locations where possible.`;
 		}
 	}
 
+	// Help message functions
+	function dismissHelpMessage() {
+		showHelpMessage = false;
+		localStorage.setItem('revisions-help-dismissed', 'true');
+	}
+
+	// Chatbot functions
+	function openChatbotModal() {
+		showChatbotModal = true;
+	}
+
+	function closeChatbotModal() {
+		showChatbotModal = false;
+	}
+
+	async function sendChatMessage() {
+		if (!chatMessage.trim() || !selectedProject || isSendingMessage) return;
+		
+		const userMessage = chatMessage;
+		chatMessage = '';
+		isSendingMessage = true;
+		
+		// Add user message
+		chatHistory = [...chatHistory, { role: 'user', message: userMessage }];
+		
+		try {
+			// Get LLM settings
+			const llmConfig = getLLMSettings();
+			const llmClient = new LLMClient(llmConfig);
+			
+			// Generate system prompt and user prompt separately
+			const systemPrompt = `You are an AI assistant helping with academic paper revisions. You have access to the current draft content and can provide helpful suggestions.
+
+Current Paper: "${selectedProject.title}"
+Paper Content:
+---
+${selectedProject.content}
+---
+
+As an academic writing assistant, you can help with:
+- Reviewing and suggesting improvements to specific sections
+- Identifying areas that need more clarity or evidence
+- Suggesting better word choices or sentence structure
+- Checking for consistency in terminology and arguments
+- Recommending places where citations might be needed
+- Analyzing the overall flow and organization
+
+Please provide helpful, specific suggestions based on the paper content above. Keep your response focused and actionable.`;
+			
+			// Call the LLM with proper system/user prompt separation
+			const response = await llmClient.chatCompletion(systemPrompt, userMessage);
+			
+			// Add assistant response
+			chatHistory = [...chatHistory, { role: 'assistant', message: response.content }];
+			
+		} catch (error) {
+			console.error('Error sending message to LLM:', error);
+			
+			// Add error message
+			const errorMessage = error instanceof Error && error.message.includes('Settings') 
+				? error.message 
+				: 'I encountered an error while processing your request. Please check your LLM settings in the Settings page.';
+				
+			chatHistory = [...chatHistory, { role: 'assistant', message: errorMessage }];
+		} finally {
+			isSendingMessage = false;
+		}
+	}
+
+	function handleChatKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter' && !event.shiftKey) {
+			event.preventDefault();
+			sendChatMessage();
+		}
+	}
+
+	// Update chat history when project changes
+	function updateChatContextForProject() {
+		if (selectedProject) {
+			// Reset chat with ready message - we already have the content loaded
+			chatHistory = [
+				{ role: 'assistant', message: m.chatbot_ready_to_help({ title: selectedProject.title }) }
+			];
+		} else {
+			// Reset to no-project state
+			chatHistory = [
+				{ role: 'assistant', message: m.chatbot_no_project_selected() }
+			];
+		}
+	}
+
 	// Initialize on mount
 	onMount(() => {
 		loadRevisionProjects();
 		loadAvailableDrafts();
-		checkLLMConfiguration();
+		
+		// Check if help message should be shown for first-time visitors
+		const hasSeenHelp = localStorage.getItem('revisions-help-dismissed');
+		if (!hasSeenHelp) {
+			showHelpMessage = true;
+		}
 		
 		// Handle URL query parameters after loading data
 		setTimeout(() => {
 			handleUrlQuery();
+			// Update chatbot context after initial loading
+			updateChatContextForProject();
 		}, 100);
 	});
 </script>
@@ -461,7 +504,7 @@ Provide specific, actionable suggestions with locations where possible.`;
 			<Card>
 				<div class="space-y-4">
 					<div class="flex items-center justify-between">
-						<h2 class="text-lg font-semibold text-gray-900">Revisions</h2>
+						<h2 class="text-lg font-semibold text-gray-900">{m.revisions_sidebar_title()}</h2>
 					</div>
 
 					{#if revisionProjects.length === 0}
@@ -553,6 +596,64 @@ Provide specific, actionable suggestions with locations where possible.`;
 					{/if}
 				</div>
 			</Card>
+
+			<!-- AI Assistant Chatbot -->
+			<Card class="mt-6 {!selectedProject ? 'opacity-50' : ''}">
+				<div class="space-y-4">
+					<div class="flex items-center justify-between">
+						<h2 class="text-lg font-semibold text-gray-900">{m.chatbot_title()}</h2>
+						<button
+							onclick={openChatbotModal}
+							disabled={!selectedProject}
+							class="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+							title={m.chatbot_maximize()}
+						>
+							<Icon icon="heroicons:arrows-pointing-out" class="w-4 h-4" />
+						</button>
+					</div>
+
+					<!-- Chat Messages -->
+					<div class="h-32 overflow-y-auto space-y-2 p-3 bg-gray-50 rounded-lg">
+						{#each chatHistory.slice(-3) as message, index (index)}
+							<div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
+								<div class="max-w-xs px-2 py-1 rounded text-xs {
+									message.role === 'user' 
+										? 'bg-primary-600 text-white' 
+										: 'bg-white text-gray-800 border border-gray-200'
+								}">
+									{#if message.role === 'assistant'}
+										{@html marked(message.message)}
+									{:else}
+										{message.message}
+									{/if}
+								</div>
+							</div>
+						{/each}
+					</div>
+
+					<!-- Input -->
+					<div class="flex space-x-2">
+						<input
+							bind:value={chatMessage}
+							onkeydown={handleChatKeydown}
+							placeholder={selectedProject ? m.chatbot_placeholder() : m.chatbot_no_project_selected()}
+							disabled={!selectedProject || isSendingMessage}
+							class="flex-1 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+						/>
+						<button
+							onclick={sendChatMessage}
+							disabled={!chatMessage.trim() || !selectedProject || isSendingMessage}
+							class="px-2 py-1 bg-primary-600 text-white rounded text-xs hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+						>
+							{#if isSendingMessage}
+								<Icon icon="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
+							{:else}
+								{m.chatbot_send()}
+							{/if}
+						</button>
+					</div>
+				</div>
+			</Card>
 		</div>
 
 		<!-- Main Content -->
@@ -565,62 +666,75 @@ Provide specific, actionable suggestions with locations where possible.`;
 							<div>
 								<h2 class="text-xl font-semibold text-gray-900">{selectedProject.title}</h2>
 								<p class="text-sm text-gray-600">
-									{selectedProject.source === 'draft' ? 'Imported from drafts' : 'Uploaded file'} • 
-									Modified {formatDate(selectedProject.lastModified)}
+									{selectedProject.source === 'draft' ? m.revisions_source_draft() : m.revisions_source_upload()} • 
+									{m.revisions_modified()} {formatDate(selectedProject.lastModified)}
 								</p>
 							</div>
 							<div class="flex space-x-2">
 								<Button
-									onclick={generateAISuggestions}
-									disabled={isGeneratingSuggestions || !hasValidLLMConfig}
+									onclick={() => downloadAsMarkdown(selectedProject)}
 									variant="secondary"
-									iconLeft="heroicons:sparkles"
+									iconLeft="heroicons:document-text"
 								>
-									{isGeneratingSuggestions ? m.revisions_generating_suggestions() : m.revisions_ai_suggestions()}
+									{m.revisions_download_md()}
 								</Button>
 								<Button
-									onclick={validateContent}
-									disabled={isValidating || !hasValidLLMConfig}
+									onclick={() => downloadAsDocx(selectedProject)}
 									variant="secondary"
-									iconLeft="heroicons:globe-alt"
+									iconLeft="heroicons:document-arrow-down"
 								>
-									{isValidating ? m.revisions_browsing_web() : m.revisions_validation_results()}
+									{m.revisions_download_docx()}
 								</Button>
 							</div>
 						</div>
 					</Card>
 
-					<!-- AI Suggestions Panel -->
-					{#if selectedProject.aiSuggestions && selectedProject.aiSuggestions.length > 0}
-						<Card>
-							<h3 class="text-lg font-semibold text-gray-900 mb-4">{m.revisions_suggestions_title()}</h3>
-							<div class="space-y-4">
-								{#each selectedProject.aiSuggestions as suggestion (suggestion.id)}
-									<div class="p-4 border border-gray-200 rounded-lg">
-										<div class="flex items-start justify-between">
-											<div class="flex-1">
-												<h4 class="font-medium text-gray-900">{suggestion.title}</h4>
-												<p class="text-sm text-gray-600 mt-1">{suggestion.description}</p>
-												<div class="mt-3 p-3 bg-gray-50 rounded text-sm prose prose-sm max-w-none">
-													{@html marked(suggestion.suggestion)}
-												</div>
-											</div>
-											<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-												{suggestion.type}
-											</span>
-										</div>
+					<!-- Help Message for First-Time Visitors -->
+					{#if showHelpMessage}
+						<div class="bg-green-50 border border-green-200 rounded-lg p-4">
+							<div class="flex">
+								<div class="flex-shrink-0">
+									<Icon icon="heroicons:information-circle" class="h-5 w-5 text-green-400" />
+								</div>
+								<div class="ml-3 flex-1">
+									<h3 class="text-sm font-medium text-green-800">
+										{m.revisions_help_title()}
+									</h3>
+									<div class="mt-2 text-sm text-green-700">
+										<p>
+											{m.revisions_help_intro()}
+										</p>
+										<ul class="mt-2 list-disc list-inside space-y-1">
+											<li><strong>{m.revisions_help_ai_revise()}</strong> {m.revisions_help_ai_revise_desc()}</li>
+											<li><strong>{m.revisions_help_ai_fact_check()}</strong> {m.revisions_help_ai_fact_check_desc()}</li>
+										</ul>
+										<p class="mt-2">
+											{m.revisions_help_usage()}
+										</p>
 									</div>
-								{/each}
+								</div>
+								<div class="ml-auto pl-3">
+									<div class="-mx-1.5 -my-1.5">
+										<Button
+											onclick={dismissHelpMessage}
+											variant="ghost"
+											size="sm"
+											class="inline-flex rounded-md p-1.5 text-green-500 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-green-50 focus:ring-green-600"
+										>
+											<span class="sr-only">{m.revisions_dismiss()}</span>
+											<Icon icon="heroicons:x-mark" class="h-5 w-5" />
+										</Button>
+									</div>
+								</div>
 							</div>
-						</Card>
+						</div>
 					{/if}
 
 					<!-- Content Editor -->
 					<Card>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Content Editor with Annotations</h3>
-						<EnhancedTiptapEditor
-							content={editorContent}
-							onUpdate={(content) => updateContent(content)}
+						<RevisionEditor 
+							initialContent={selectedProject.content}
+							onContentChange={(newContent) => updateContent(newContent)}
 						/>
 					</Card>
 				</div>
@@ -628,8 +742,8 @@ Provide specific, actionable suggestions with locations where possible.`;
 				<Card>
 					<div class="text-center py-12">
 						<Icon icon="heroicons:document-text" class="w-16 h-16 mx-auto mb-4 text-gray-400" />
-						<h3 class="text-lg font-medium text-gray-900 mb-2">No revision selected</h3>
-						<p class="text-gray-600 mb-6">Select a revision from the sidebar or create a new one to get started</p>
+						<h3 class="text-lg font-medium text-gray-900 mb-2">{m.revisions_no_selected_title()}</h3>
+						<p class="text-gray-600 mb-6">{m.revisions_no_selected_description()}</p>
 						<div class="flex justify-center space-x-4">
 							<Button
 								onclick={() => showUploadModal = true}
@@ -653,32 +767,35 @@ Provide specific, actionable suggestions with locations where possible.`;
 	</div>
 </div>
 
+
 <!-- Upload Modal -->
 <Modal 
 	show={showUploadModal} 
 	title={m.revisions_upload_title()}
 	onClose={() => showUploadModal = false}
-	size="md"
+	size="xl"
 >
 	{#snippet children()}
 		<p class="text-sm text-gray-600 mb-4">{m.revisions_upload_description()}</p>
 		
 		<!-- Confidentiality Warning -->
-		{#if hasValidLLMConfig && llmClient}
-			<div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-				<div class="flex items-start">
-					<Icon icon="heroicons:exclamation-triangle" class="w-5 h-5 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
-					<div class="flex-1">
-						<h3 class="text-sm font-medium text-amber-800 mb-1">
-							{m.revisions_confidentiality_warning_title()}
-						</h3>
-						<p class="text-sm text-amber-700">
-							{m.revisions_confidentiality_warning()}
+		<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+			<div class="flex">
+				<div class="flex-shrink-0">
+					<Icon icon="heroicons:exclamation-triangle" class="h-5 w-5 text-red-400" />
+				</div>
+				<div class="ml-3">
+					<h3 class="text-sm font-medium text-red-800">
+						{m.revisions_upload_warning_title()}
+					</h3>
+					<div class="mt-2 text-sm text-red-700">
+						<p>
+							{m.revisions_upload_warning_message()}
 						</p>
 					</div>
 				</div>
 			</div>
-		{/if}
+		</div>
 		
 		<!-- File Drop Zone -->
 		<FileDrop
@@ -691,7 +808,7 @@ Provide specific, actionable suggestions with locations where possible.`;
 		/>
 		
 		<div class="flex justify-end space-x-3 mt-6">
-			<Button onclick={() => showUploadModal = false} variant="secondary">Cancel</Button>
+			<Button onclick={() => showUploadModal = false} variant="secondary">{m.revisions_cancel()}</Button>
 		</div>
 	{/snippet}
 </Modal>
@@ -708,7 +825,7 @@ Provide specific, actionable suggestions with locations where possible.`;
 			{#if availableDrafts.length === 0}
 				<div class="text-center py-8">
 					<Icon icon="heroicons:document-text" class="w-12 h-12 mx-auto mb-4 text-gray-400" />
-					<p class="text-sm text-gray-600">No completed drafts available to import</p>
+					<p class="text-sm text-gray-600">{m.revisions_no_drafts_available()}</p>
 				</div>
 			{:else}
 				<div class="space-y-2">
@@ -743,7 +860,74 @@ Provide specific, actionable suggestions with locations where possible.`;
 		</div>
 		
 		<div class="flex justify-end space-x-3 mt-6">
-			<Button onclick={() => showImportModal = false} variant="secondary">Cancel</Button>
+			<Button onclick={() => showImportModal = false} variant="secondary">{m.revisions_cancel()}</Button>
 		</div>
+	{/snippet}
+</Modal>
+
+<!-- AI Assistant Modal -->
+<Modal 
+	show={showChatbotModal} 
+	title={m.chatbot_modal_title()}
+	onClose={closeChatbotModal}
+	size="4xl"
+>
+	{#snippet children()}
+		{#if selectedProject}
+			<div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+				<div class="flex items-center space-x-2">
+					<Icon icon="heroicons:document-text" class="w-4 h-4 text-blue-600" />
+					<span class="text-sm text-blue-800">Analyzing: <strong>{selectedProject.title}</strong></span>
+					<span class="text-xs text-blue-600">({Math.round(selectedProject.content.length/1000)}k characters)</span>
+				</div>
+			</div>
+
+			<!-- Chat Messages -->
+			<div class="h-96 overflow-y-auto space-y-3 p-4 bg-gray-50 border border-gray-200 rounded-lg mb-4">
+				{#each chatHistory as message, index (index)}
+					<div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
+						<div class="max-w-2xl px-4 py-2 rounded-lg text-sm {
+							message.role === 'user' 
+								? 'bg-primary-600 text-white' 
+								: 'bg-white text-gray-800 border border-gray-200 shadow-sm'
+						}">
+							{#if message.role === 'assistant'}
+								{@html marked(message.message)}
+							{:else}
+								{message.message}
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- Input -->
+			<div class="flex space-x-3">
+				<input
+					bind:value={chatMessage}
+					onkeydown={handleChatKeydown}
+					placeholder={m.chatbot_placeholder()}
+					disabled={isSendingMessage}
+					class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+				/>
+				<button
+					onclick={sendChatMessage}
+					disabled={!chatMessage.trim() || isSendingMessage}
+					class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center space-x-2"
+				>
+					{#if isSendingMessage}
+						<Icon icon="heroicons:arrow-path" class="w-4 h-4 animate-spin" />
+						<span>Sending...</span>
+					{:else}
+						{m.chatbot_send()}
+					{/if}
+				</button>
+			</div>
+		{:else}
+			<div class="text-center py-12">
+				<Icon icon="heroicons:exclamation-triangle" class="w-12 h-12 mx-auto mb-4 text-gray-400" />
+				<p class="text-gray-600">{m.chatbot_no_project_selected()}</p>
+			</div>
+		{/if}
 	{/snippet}
 </Modal>

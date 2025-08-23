@@ -621,3 +621,150 @@ export function getKeyPointsGenerationPrompt(
 	// This function now delegates to the combined function but returns only key points
 	return getKeyPointsAndReferencesGenerationPrompt(sectionTitle, paperType, targetLength, citationsContext, allSectionTitles, researchFocus);
 }
+
+// AI Reviewer Prompt for DragHandle (First Stage)
+export function getAIReviewerPrompt(selectedText: string, fullManuscript?: string): string {
+	const documentContext = fullManuscript 
+		? `\n\nDOCUMENT CONTEXT:\nTo provide coherent assessment that considers the overall document, you have access to the full document below. Use this context to:\n- Understand how this section fits within the document structure\n- Maintain consistent evaluation standards across the document\n- Consider section flow and transitions with surrounding content\n\n### FULL DOCUMENT FOR CONTEXT\n${fullManuscript}\n\n---`
+		: '';
+
+	return `Your Role: You are an expert academic reviewer responsible for evaluating a section of an academic document.${documentContext}
+
+Primary Task: You will analyze the section provided below and determine whether it needs revision. Your response must be in the exact format specified.
+
+CRITICAL INSTRUCTIONS:
+1. Output Format (STRICT):
+Your output must follow this exact JSON format:
+{"needs_revision": true/false, "reason": "detailed explanation"}
+
+2. Internal Review Process:
+You must perform a critical analysis of the section based on comprehensive evaluation criteria. The section should be evaluated thoroughly based on:
+
+- Argument & Logic: Coherence, soundness of reasoning, and logical flow within the section
+- Clarity & Presentation: Precision of language, sentence structure, and clarity of the main points
+- Evidence & Support: Sufficiency and relevance of supporting data, citations, or claims
+- Academic Writing Quality: Professional tone, appropriate terminology, and scholarly presentation
+- Section Structure: Organization, transitions, and overall coherence of the section
+
+CRITICAL REVISION RESTRAINT:
+- Robotic, AI-generated language patterns are a MAJOR reason to recommend revision
+- Only recommend revision if there are SIGNIFICANT issues that substantially impact comprehension, academic quality, or natural human writing style
+- Do NOT recommend revision for minor stylistic preferences or trivial improvements
+- Focus on major problems: robotic language, unclear arguments, poor structure, inadequate evidence, or serious writing issues
+- If a section sounds artificial, overly formal, or machine-generated, it should be revised regardless of other quality factors
+- Preserve the author's voice and style when possible, but prioritize natural human-like academic writing
+
+CRITICAL REVISION PRIORITIES (identify sections with these issues):
+- Robotic, AI-generated language patterns that sound artificial or overly formal (MAJOR PRIORITY)
+- Factual errors, logical inconsistencies, or unclear arguments
+- Poor sentence structure that impedes comprehension
+- Missing or inadequate evidence for claims
+- Inappropriate tone for academic writing
+- Unclear or confusing explanations of methods or findings
+
+REVISION RESTRAINT:
+- Only recommend sections for revision if they have significant, critical issues
+- Do not flag sections for minor stylistic preferences or subjective improvements
+- Focus on content clarity, logical flow, and academic appropriateness
+- Preserve the author's voice and writing style when possible
+
+### SECTION TO REVIEW
+
+${selectedText}`;
+}
+
+// AI Revisor Prompt for DragHandle (Second Stage)
+export function getAIRevisorPrompt(selectedText: string, reviewerReason: string, fullManuscript?: string): string {
+	const documentContext = fullManuscript 
+		? `\n\nDOCUMENT CONTEXT:\nTo provide coherent revisions that align with the overall document, you have access to the full document below. Use this context to:\n- Maintain consistent terminology and style throughout the document\n- Ensure the revised section flows well with preceding and following sections\n- Preserve document-wide themes and arguments\n- Keep citations and references consistent with the document's style\n\n### FULL DOCUMENT FOR CONTEXT\n${fullManuscript}\n\n---`
+		: '';
+
+	const reviewerContext = `\n\nREVIEWER ASSESSMENT:\nThe reviewer identified the following specific issues with this section that MUST be addressed in your revision:\n${reviewerReason}\n\nCRITICAL: You must directly address each specific issue mentioned by the reviewer. If the reviewer mentions missing elements (like summary sentences or specific formatting), you MUST add them. If the reviewer mentions problematic language or expressions, you MUST replace them.\n\nMAJOR PRIORITY: If the reviewer identifies robotic, AI-generated, or overly formal language patterns, you must completely rewrite those sections to sound natural and human-like while maintaining academic standards. This is a PRIMARY concern that must be addressed thoroughly.\n\nYour revision will be evaluated based on how well it addresses these specific concerns, with natural writing style being of utmost importance.\n\n---`;
+
+	return `Your Role: You are an expert academic editor and reviser.${documentContext}${reviewerContext}
+
+Primary Task: Your task is to perform a complete revision of the section provided below. Your sole output will be the rewritten, polished text of that entire section.
+
+CRITICAL INSTRUCTIONS:
+1. Output Format (STRICT):
+Your output must be a single string containing the full, rewritten text of the section.
+Do not include any additional headers, comments, JSON formatting, or any text other than the revised section itself.
+
+2. Revision Principles:
+- Source-Based Revision: Your revision must be based EXCLUSIVELY on the information and intent present in the original section. Do not introduce new external facts, data, or concepts. The goal is to improve the presentation and argumentation of the existing material.
+- Complete Rewrite: Your output should be a full and complete replacement for the original section, not a list of corrections.
+- Section Coherence: Ensure the revised section maintains logical flow, proper transitions between ideas, and consistent academic tone throughout.
+- Citation Preservation: Maintain all existing citations and references exactly as they appear in the original text.
+
+NATURAL LANGUAGE REQUIREMENTS (FOR REVISION):
+PRIORITY 1: Make the text sound natural and human-like - this is your PRIMARY objective
+- Use direct, specific, and formal academic language that sounds conversational within academic bounds
+- Write in a straightforward, professional manner that flows naturally
+- If ANY part of the text sounds artificial, robotic, or machine-generated, completely rewrite it using natural human language
+
+### SECTION TO REVISE
+
+${selectedText}`;
+}
+
+// Legacy AI Revision Prompt for backward compatibility
+export function getAIRevisionPrompt(selectedText: string, fullManuscript?: string): string {
+	// For backward compatibility, use the reviewer prompt
+	return getAIReviewerPrompt(selectedText, fullManuscript);
+}
+
+// AI Fact Check Prompt for DragHandle
+export function getAIFactCheckPrompt(selectedText: string, fullManuscript?: string): string {
+	const manuscriptContext = fullManuscript 
+		? `\n\nFull Manuscript Context (for reference):\n"${fullManuscript}"\n\nUse this context to check for consistency with other claims in the manuscript and to better understand the overall research context.`
+		: '';
+
+	return `You are an expert academic fact-checker and research assistant. Your task is to analyze the selected text for potential factual issues, inconsistencies, or areas that may need verification.
+
+Selected Text to Analyze:
+"${selectedText}"${manuscriptContext}
+
+Please analyze this text and identify:
+
+1. **Factual Claims** - List any specific factual statements that can be verified
+2. **Potential Issues** - Identify any claims that seem questionable, outdated, or unsupported
+3. **Consistency Check** - Verify consistency with other claims and data in the manuscript
+4. **Missing Context** - Note if important context or qualifications are missing
+5. **Verification Suggestions** - Suggest what types of sources would be needed to verify claims
+6. **Accuracy Assessment** - Provide an overall assessment of the text's reliability
+
+IMPORTANT GUIDELINES:
+- Focus on factual accuracy, not writing style
+- Be objective and evidence-based in your assessment
+- Check for internal consistency within the manuscript
+- Distinguish between opinions/interpretations and factual claims
+- Consider the academic context and standards
+- If claims appear accurate and consistent, note that as well
+- Suggest specific improvements if issues are found
+- Pay attention to methodology, data interpretation, and statistical claims
+
+Provide your analysis in a clear, structured format that helps the author understand any potential concerns and next steps for verification.`;
+}
+
+// AI Assistant Chatbot Prompt for Revisions
+export function getRevisionChatbotPrompt(userMessage: string, paperTitle: string, paperContent: string): string {
+	return `You are an AI assistant helping with academic paper revisions. You have access to the current draft content and can provide helpful suggestions.
+
+Current Paper: "${paperTitle}"
+Paper Content:
+---
+${paperContent}
+---
+
+User Question: "${userMessage}"
+
+As an academic writing assistant, you can help with:
+- Reviewing and suggesting improvements to specific sections
+- Identifying areas that need more clarity or evidence
+- Suggesting better word choices or sentence structure
+- Checking for consistency in terminology and arguments
+- Recommending places where citations might be needed
+- Analyzing the overall flow and organization
+
+Please provide helpful, specific suggestions based on the paper content above. Keep your response focused and actionable.`;
+}
