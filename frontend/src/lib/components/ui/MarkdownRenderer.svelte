@@ -3,10 +3,12 @@
 
 	let { 
 		content = '',
-		class: className = ''
+		class: className = '',
+		thinking = false
 	}: {
 		content: string;
 		class?: string;
+		thinking?: boolean;
 	} = $props();
 
 	let renderedContent = $state('');
@@ -64,6 +66,12 @@
 {#if renderedContent}
 	<div class="markdown-content {className}">
 		{@html renderedContent}
+	</div>
+{:else if thinking}
+	<div class="markdown-content {className}">
+		<div class="thinking-dots text-secondary-500">
+			<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+		</div>
 	</div>
 {:else}
 	<div class="markdown-content {className}">
@@ -124,5 +132,38 @@
 		height: auto;
 		border-radius: 0.375rem;
 		margin: 0.5rem 0;
+	}
+
+	/* Animated thinking dots */
+	.thinking-dots {
+		display: inline-block;
+	}
+
+	.thinking-dots .dot {
+		opacity: 0;
+		animation: thinking 1.4s infinite;
+		font-size: 1.2em;
+		line-height: 1;
+	}
+
+	.thinking-dots .dot:nth-child(1) {
+		animation-delay: 0s;
+	}
+
+	.thinking-dots .dot:nth-child(2) {
+		animation-delay: 0.2s;
+	}
+
+	.thinking-dots .dot:nth-child(3) {
+		animation-delay: 0.4s;
+	}
+
+	@keyframes thinking {
+		0%, 60%, 100% {
+			opacity: 0;
+		}
+		30% {
+			opacity: 1;
+		}
 	}
 </style>

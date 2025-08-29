@@ -11,12 +11,20 @@
 	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Icon from '@iconify/svelte';
+	import FileDrop from '$lib/components/ui/FileDrop.svelte';
+	import ArticleSearchModal from './ArticleSearchModal.svelte';
 
 	// i18n
 	import { m } from '$lib/paraglide/messages.js';
 
 	// @ts-ignore
 	import * as bibtexParse from '@orcid/bibtex-parse-js';
+	
+	// LLM and file processing
+	import { LLMClient, getLLMSettings } from '$lib/utils/llm';
+	import { getDocumentSummaryPrompt, getImageSummaryPrompt, getCodeSummaryPrompt } from '$lib/utils/prompts';
+	import { getLocale } from '$lib/paraglide/runtime.js';
+	import { generateUUID } from '$lib/utils/uuid';
 
     import type { Citation } from '$lib/stores/drafts';
 
@@ -25,17 +33,20 @@
 		draftId,
 		citations = $bindable(),
         uploadedFiles = $bindable(),
+		figureFiles = $bindable(),
 		onNextStep,
 		onPreviousStep
 	}: { 
 		draftId: string;
 		citations: Citation[];
-        uploadedFiles: { id: string; name: string; type: string; size: number }[];
+        uploadedFiles: { id: string; name: string; type: string; size: number; url?: string; summary?: string; isProcessing?: boolean }[];
+        figureFiles: { id: string; name: string; type: string; size: number; url?: string; thumbnail?: string; summary?: string; isProcessing?: boolean }[];
 		onNextStep: () => void;
 		onPreviousStep: () => void;
 	} = $props();
 	let selectedCitationId = $state<string | null>(null);
 	let showAddCitationForm = $state(false);
+	let showArticleSearchModal = $state(false);
 	let editingCitationId = $state<string | null>(null);
 	let editingCitation = $state({
 		title: '',
@@ -57,6 +68,13 @@
 	// Pagination state
 	let currentPage = $state(1);
 	let itemsPerPage = $state(10);
+
+	// Check if any files are being processed
+	const isProcessing = $derived(() => {
+		const uploadProcessing = uploadedFiles.some(file => file.isProcessing);
+		const figureProcessing = figureFiles.some(file => file.isProcessing);
+		return uploadProcessing || figureProcessing;
+	});
 
 	// Form states
 	let newCitation = $state({
@@ -92,25 +110,11 @@
 		return citations.slice(startIndex, endIndex);
 	});
 
-	// Validation
+	// Validation - require at least one material (citation, figure, or supplementary data)
 	let canProceedToOutline = $derived(() => {
-		return citations.length > 0;
+		return citations.length > 0 || figureFiles.length > 0 || uploadedFiles.length > 0;
 	});
 
-	// UUID generation function with fallback for debugging environments
-	function generateUUID(): string {
-		// Use native crypto.randomUUID() if available (modern browsers/Node.js)
-		if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-			return crypto.randomUUID();
-		}
-		
-		// Fallback for debugging/development environments
-		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-			const r = Math.random() * 16 | 0;
-			const v = c === 'x' ? r : (r & 0x3 | 0x8);
-			return v.toString(16);
-		});
-	}
 
 	// BibTeX parser using @orcid/bibtex-parse-js library
 	function parseBibTeX(bibtexContent: string): Citation[] {
@@ -192,6 +196,7 @@
 			const documentsData = {
 				citations,
 				uploadedFiles,
+				figureFiles,
 				lastSaved: new Date().toISOString()
 			};
 			localStorage.setItem(`paperwriter-draft-${draftId}-documents`, JSON.stringify(documentsData));
@@ -242,6 +247,12 @@
 			url: ''
 		};
 		showAddCitationForm = false;
+	}
+
+	// Handle citation from article search
+	function handleAddCitationFromSearch(citation: Citation) {
+		citations = [...citations, citation];
+		saveDocumentsData();
 	}
 
 	function deleteCitation(citationId: string) {
@@ -410,30 +421,294 @@
 		currentPage = page;
 	}
 
-	// Handle file upload
-	function handleFileUpload(event: Event) {
-		const input = event.target as HTMLInputElement;
-		const files = input.files;
-		if (!files) return;
+	// Handle file selection from FileDrop component for figures
+	async function handleFigureSelection(file: File) {
+		const fileId = generateUUID();
 		
-		for (const file of Array.from(files)) {
-			const fileData = {
-				id: generateUUID(),
-				name: file.name,
-				type: file.type,
-				size: file.size,
-				url: URL.createObjectURL(file)
-			};
+		// Create thumbnail for localStorage storage
+		const thumbnail = await createThumbnail(file);
+		
+		const fileData = {
+			id: fileId,
+			name: file.name,
+			type: file.type,
+			size: file.size,
+			url: URL.createObjectURL(file),
+			thumbnail: thumbnail, // Store base64 thumbnail for persistence
+			isProcessing: true,
+			summary: undefined
+		};
+		
+		figureFiles = [...figureFiles, fileData];
+		saveDocumentsData();
+		
+		// Process the file asynchronously
+		processFileWithLLM(file, fileId, 'figure');
+	}
+
+	// Handle file selection from FileDrop component for supplementary data
+	function handleFileSelection(file: File) {
+		const fileData = {
+			id: generateUUID(),
+			name: file.name,
+			type: file.type,
+			size: file.size,
+			url: URL.createObjectURL(file),
+			isProcessing: true,
+			summary: undefined
+		};
+		
+		uploadedFiles = [...uploadedFiles, fileData];
+		saveDocumentsData();
+		
+		// Process the file asynchronously
+		processFileWithLLM(file, fileData.id, 'document');
+	}
+	
+	// Process file content and generate summary using LLM
+	async function processFileWithLLM(file: File, fileId: string, fileCategory: 'figure' | 'document' = 'document') {
+		try {
+			// Find the file in the appropriate array
+			const fileList = fileCategory === 'figure' ? figureFiles : uploadedFiles;
+			const fileIndex = fileList.findIndex(f => f.id === fileId);
+			if (fileIndex === -1) return;
 			
-			uploadedFiles = [...uploadedFiles, fileData];
+			// Get LLM settings
+			const llmConfig = getLLMSettings();
+			const llmClient = new LLMClient(llmConfig);
+			
+			let prompt: string;
+			let systemPrompt = '';
+			
+			// Handle different file types
+			if (file.type.startsWith('image/')) {
+				// For images, use vision-capable LLM
+				const imageBase64 = await fileToBase64(file);
+				const prompt = getImageSummaryPrompt(file.name, getLocale());
+				
+				// Call vision-enabled LLM
+				const response = await llmClient.visionCompletion(prompt, imageBase64);
+				
+				// Update the file data with summary in the correct array
+				if (fileCategory === 'figure') {
+					figureFiles[fileIndex] = {
+						...figureFiles[fileIndex],
+						isProcessing: false,
+						summary: response.content
+					};
+				} else {
+					uploadedFiles[fileIndex] = {
+						...uploadedFiles[fileIndex],
+						isProcessing: false,
+						summary: response.content
+					};
+				}
+				
+				saveDocumentsData();
+				return;
+			}
+			
+			// Read text-based files
+			const content = await readFileContent(file);
+			
+			// Determine file type and create appropriate prompt
+			if (isCodeFile(file.name)) {
+				prompt = getCodeSummaryPrompt(file.name, file.type, content, getLocale());
+			} else {
+				prompt = getDocumentSummaryPrompt(file.name, file.type, content, getLocale());
+			}
+			
+			// Call LLM for summarization
+			const response = await llmClient.chatCompletion(systemPrompt, prompt);
+			
+			// Update the file data with summary in the correct array
+			if (fileCategory === 'figure') {
+				figureFiles[fileIndex] = {
+					...figureFiles[fileIndex],
+					isProcessing: false,
+					summary: response.content
+				};
+			} else {
+				uploadedFiles[fileIndex] = {
+					...uploadedFiles[fileIndex],
+					isProcessing: false,
+					summary: response.content
+				};
+			}
+			
+		} catch (error) {
+			console.error('Error processing file with LLM:', error);
+			
+			// Update file with specific error message
+			const fileList = fileCategory === 'figure' ? figureFiles : uploadedFiles;
+			const fileIndex = fileList.findIndex(f => f.id === fileId);
+			if (fileIndex !== -1) {
+				let errorMessage = 'Failed to process file. Please check your LLM settings.';
+				
+				// Provide more specific error messages for common issues
+				if (error instanceof Error) {
+					if (error.message.includes('Failed to convert PDF')) {
+						errorMessage = 'Failed to extract text from PDF. The file might be corrupted or password-protected.';
+					} else if (error.message.includes('Failed to convert DOCX')) {
+						errorMessage = 'Failed to extract text from Word document. The file might be corrupted or in an unsupported format.';
+					} else if (error.message.includes('Settings')) {
+						errorMessage = error.message; // Use the LLM settings error message directly
+					}
+				}
+				
+				if (fileCategory === 'figure') {
+					figureFiles[fileIndex] = {
+						...figureFiles[fileIndex],
+						isProcessing: false,
+						summary: errorMessage
+					};
+				} else {
+					uploadedFiles[fileIndex] = {
+						...uploadedFiles[fileIndex],
+						isProcessing: false,
+						summary: errorMessage
+					};
+				}
+			}
 		}
 		
 		saveDocumentsData();
-		// Clear the input
-		input.value = '';
 	}
 	
-	// Remove uploaded file
+	// Helper function to read file content as text
+	async function readFileContent(file: File): Promise<string> {
+		const fileName = file.name.toLowerCase();
+		
+		// Handle PDF files
+		if (fileName.endsWith('.pdf')) {
+			return await convertPdfToText(file);
+		}
+		
+		// Handle DOCX files
+		if (fileName.endsWith('.docx')) {
+			return await convertDocxToText(file);
+		}
+		
+		// Handle regular text files
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = (e) => resolve(e.target?.result as string);
+			reader.onerror = (e) => reject(e);
+			reader.readAsText(file);
+		});
+	}
+	
+	// Convert PDF to text using pdf.js
+	async function convertPdfToText(file: File): Promise<string> {
+		try {
+			// Dynamic import to avoid bundling issues
+			const pdfjs = await import('pdfjs-dist');
+			
+			// Set up worker
+			pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+			
+			// Convert file to ArrayBuffer
+			const arrayBuffer = await file.arrayBuffer();
+			
+			// Load the PDF document
+			const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+			let textContent = '';
+			
+			// Extract text from each page
+			for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+				const page = await pdf.getPage(pageNum);
+				const content = await page.getTextContent();
+				
+				// Combine text items into strings
+				const pageText = content.items
+					.map((item: any) => item.str)
+					.join(' ');
+				
+				textContent += pageText + '\n\n';
+			}
+			
+			return textContent.trim();
+		} catch (error) {
+			console.error('PDF conversion error:', error);
+			throw new Error(`Failed to convert PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		}
+	}
+	
+	// Convert DOCX to text using mammoth.js
+	async function convertDocxToText(file: File): Promise<string> {
+		try {
+			// Use mammoth.js for direct text extraction
+			const mammoth = await import('mammoth');
+			
+			// Extract raw text directly from DOCX
+			const result = await mammoth.extractRawText({
+				arrayBuffer: await file.arrayBuffer()
+			});
+			
+			return result.value;
+		} catch (error) {
+			console.error('DOCX conversion error:', error);
+			throw new Error(`Failed to convert DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		}
+	}
+	
+	// Helper function to convert file to base64 for vision models
+	function fileToBase64(file: File): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = (e) => resolve(e.target?.result as string);
+			reader.onerror = (e) => reject(e);
+			reader.readAsDataURL(file);
+		});
+	}
+
+	// Helper function to create thumbnail from image file
+	function createThumbnail(file: File, maxWidth: number = 100, maxHeight: number = 100): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d');
+			const img = new Image();
+			
+			img.onload = () => {
+				// Calculate thumbnail dimensions maintaining aspect ratio
+				const { width, height } = img;
+				const aspectRatio = width / height;
+				
+				let thumbWidth = maxWidth;
+				let thumbHeight = maxHeight;
+				
+				if (aspectRatio > 1) {
+					thumbHeight = maxWidth / aspectRatio;
+				} else {
+					thumbWidth = maxHeight * aspectRatio;
+				}
+				
+				canvas.width = thumbWidth;
+				canvas.height = thumbHeight;
+				
+				// Draw and convert to base64
+				ctx?.drawImage(img, 0, 0, thumbWidth, thumbHeight);
+				resolve(canvas.toDataURL('image/jpeg', 0.8));
+			};
+			
+			img.onerror = reject;
+			img.src = URL.createObjectURL(file);
+		});
+	}
+	
+	// Helper function to determine if file is a code file
+	function isCodeFile(fileName: string): boolean {
+		const codeExtensions = ['.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.cpp', '.c', '.h', '.css', '.html', '.sql', '.r', '.m', '.ipynb'];
+		return codeExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+	}
+	
+	// Remove selected figure file
+	function removeFigureFile(fileId: string) {
+		figureFiles = figureFiles.filter(f => f.id !== fileId);
+		saveDocumentsData();
+	}
+
+	// Remove selected supplementary file
 	function removeUploadedFile(fileId: string) {
 		uploadedFiles = uploadedFiles.filter(f => f.id !== fileId);
 		saveDocumentsData();
@@ -485,6 +760,10 @@
 			alert(m.documents_validation_required());
 			return;
 		}
+		if (isProcessing()) {
+			alert(m.documents_processing_warning());
+			return;
+		}
 		saveDocumentsData();
 		onNextStep();
 	}
@@ -497,6 +776,7 @@
 				const documentsData = JSON.parse(savedDocuments);
 				citations = documentsData.citations || [];
 				uploadedFiles = documentsData.uploadedFiles || [];
+				figureFiles = documentsData.figureFiles || [];
 			}
 		} catch (error) {
 			console.error('Failed to load documents data:', error);
@@ -511,60 +791,161 @@
 
 <!-- Documents & Citations Step -->
 <div class="space-y-6">
-    {#if false }
-    <!-- File Upload -->
+    <!-- Figures -->
     <Card>
         {#snippet header()}
-            <Heading level="h3" size="lg">Supporting Documents</Heading>
-            <p class="text-secondary-600 mt-1">Upload related documents, source codes, figures, or other materials</p>
+            <Heading level="h3" size="lg">{m.documents_figures_title()}</Heading>
+            <p class="text-secondary-600 mt-1">{m.documents_figures_description()}</p>
         {/snippet}
         
         <div class="space-y-4">
-            <!-- File Upload Area -->
-            <div class="border-2 border-dashed border-secondary-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors relative">
-                <input
-                    type="file"
-                    multiple
-                    onchange={handleFileUpload}
-                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    accept=".pdf,.doc,.docx,.txt,.py,.ipynb,.jpg,.jpeg,.png,.svg,.md"
-                />
-                <Icon icon="heroicons:cloud-arrow-up" class="w-12 h-12 mx-auto mb-3 text-secondary-400" />
-                <p class="text-secondary-600 mb-1">Drop files here or click to upload</p>
-                <p class="text-sm text-secondary-500">Supports: PDF, Word, text files, code, notebooks, images</p>
-            </div>
+            <!-- Figure Selection Area -->
+            <FileDrop
+                acceptedTypes={['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.bmp', '.tiff']}
+                multiple={true}
+                onFileSelect={handleFigureSelection}
+                formatText="JPG, PNG, SVG, GIF and other image formats"
+            />
             
-            <!-- Uploaded Files List -->
-            {#if uploadedFiles.length > 0}
-                <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-secondary-700">Uploaded Files ({uploadedFiles.length})</h4>
-                    <div class="space-y-2">
-                        {#each uploadedFiles as file}
-                            <div class="flex items-center justify-between p-3 bg-secondary-50 rounded-lg border border-secondary-200">
-                                <div class="flex items-center space-x-3">
-                                    <Icon icon="heroicons:document" class="w-5 h-5 text-secondary-400" />
-                                    <div>
-                                        <p class="text-sm font-medium text-secondary-900">{file.name}</p>
-                                        <p class="text-xs text-secondary-500">
-                                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                                        </p>
+            <!-- Selected Figures List -->
+            {#if figureFiles.length > 0}
+                <Card>
+                    {#snippet header()}
+                        <Heading level="h4" size="md">{m.documents_selected_files({ count: figureFiles.length })}</Heading>
+                    {/snippet}
+                    
+                    <div class="space-y-3">
+                        {#each figureFiles as file}
+                            <div class="p-4 bg-secondary-50 rounded-lg border border-secondary-200">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="flex items-center space-x-3">
+                                        <Icon 
+                                            icon="heroicons:photo" 
+                                            class="w-5 h-5 text-secondary-400" 
+                                        />
+                                        <div>
+                                            <p class="text-sm font-medium text-secondary-900">{file.name}</p>
+                                            <p class="text-xs text-secondary-500">
+                                                {m.documents_file_size({ size: (file.size / 1024 / 1024).toFixed(2) })}
+                                            </p>
+                                        </div>
                                     </div>
+                                    <button
+                                        onclick={() => removeFigureFile(file.id)}
+                                        class="p-1 text-secondary-400 hover:text-red-600 rounded transition-colors"
+                                        title={m.documents_remove_file()}
+                                    >
+                                        <Icon icon="heroicons:x-mark" class="w-4 h-4" />
+                                    </button>
                                 </div>
-                                <button
-                                    onclick={() => removeUploadedFile(file.id)}
-                                    class="p-1 text-secondary-400 hover:text-red-600 transition-colors"
-                                    title="Remove file"
-                                >
-                                    <Icon icon="heroicons:x-mark" class="w-4 h-4" />
-                                </button>
+                                
+                                <!-- Figure Summary with Thumbnail -->
+                                <div class="mt-3 p-3 bg-white rounded-lg border border-secondary-100">
+                                    {#if file.isProcessing}
+                                        <div class="flex items-center space-x-2 text-sm text-secondary-600">
+                                            <Icon icon="heroicons:arrow-path" class="w-4 h-4 animate-spin" />
+                                            <span>{m.documents_analyzing_file()}</span>
+                                        </div>
+                                    {:else if file.summary && file.thumbnail}
+                                        <div class="flex space-x-3">
+                                            <!-- Thumbnail stored in localStorage -->
+                                            <div class="flex-shrink-0">
+                                                <img 
+                                                    src={file.thumbnail} 
+                                                    alt={file.name}
+                                                    class="w-16 h-16 object-cover rounded border border-secondary-200"
+                                                    loading="lazy"
+                                                />
+                                            </div>
+                                            <div class="flex-1 text-sm text-secondary-700">
+                                                <p class="font-medium text-secondary-900 mb-1">{m.documents_summary_label()}</p>
+                                                <p>{file.summary}</p>
+                                            </div>
+                                        </div>
+                                    {:else}
+                                        <p class="text-sm text-secondary-500 italic">{m.documents_no_summary()}</p>
+                                    {/if}
+                                </div>
                             </div>
                         {/each}
                     </div>
-                </div>
+                </Card>
             {/if}
         </div>
     </Card>
-    {/if}
+
+    <!-- Supplementary Data -->
+    <Card>
+        {#snippet header()}
+            <Heading level="h3" size="lg">{m.documents_supporting_title()}</Heading>
+            <p class="text-secondary-600 mt-1">{m.documents_supporting_description()}</p>
+        {/snippet}
+        
+        <div class="space-y-4">
+            <!-- File Selection Area -->
+            <FileDrop
+                acceptedTypes={['.pdf', '.doc', '.docx', '.txt', '.py', '.ipynb', '.md', '.csv', '.json', '.xml', '.yaml', '.yml']}
+                multiple={true}
+                onFileSelect={handleFileSelection}
+                formatText="PDF, Word documents, text files, code, data files, etc."
+            />
+            
+            <!-- Selected Files List -->
+            {#if uploadedFiles.length > 0}
+                <Card>
+                    {#snippet header()}
+                        <Heading level="h4" size="md">{m.documents_selected_files({ count: uploadedFiles.length })}</Heading>
+                    {/snippet}
+                    
+                    <div class="space-y-3">
+                        {#each uploadedFiles as file}
+                            <div class="p-4 bg-secondary-50 rounded-lg border border-secondary-200">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="flex items-center space-x-3">
+                                        <Icon 
+                                            icon={file.type.startsWith('image/') ? 'heroicons:photo' : isCodeFile(file.name) ? 'heroicons:code-bracket' : 'heroicons:document'} 
+                                            class="w-5 h-5 text-secondary-400" 
+                                        />
+                                        <div>
+                                            <p class="text-sm font-medium text-secondary-900">{file.name}</p>
+                                            <p class="text-xs text-secondary-500">
+                                                {m.documents_file_size({ size: (file.size / 1024 / 1024).toFixed(2) })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onclick={() => removeUploadedFile(file.id)}
+                                        class="p-1 text-secondary-400 hover:text-red-600 rounded transition-colors"
+                                        title={m.documents_remove_file()}
+                                    >
+                                        <Icon icon="heroicons:x-mark" class="w-4 h-4" />
+                                    </button>
+                                </div>
+                                
+                                <!-- File Summary -->
+                                <div class="mt-3 p-3 bg-white rounded-lg border border-secondary-100">
+                                    {#if file.isProcessing}
+                                        <div class="flex items-center space-x-2 text-sm text-secondary-600">
+                                            <Icon icon="heroicons:arrow-path" class="w-4 h-4 animate-spin" />
+                                            <span>{m.documents_analyzing_file()}</span>
+                                        </div>
+                                    {:else if file.summary}
+                                        <div class="text-sm text-secondary-700">
+                                            <p class="font-medium text-secondary-900 mb-1">{m.documents_summary_label()}</p>
+                                            <p>{file.summary}</p>
+                                        </div>
+                                    {:else}
+                                        <p class="text-sm text-secondary-500 italic">{m.documents_no_summary()}</p>
+                                    {/if}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                </Card>
+            {/if}
+        </div>
+    </Card>
+
     <!-- Citation Management -->
     <Card>
         {#snippet header()}
@@ -581,6 +962,13 @@
                     >
                         {m.documents_add_citation()}
                     </Button>
+                    <Button
+                        onclick={() => showArticleSearchModal = true}
+                        variant="primary"
+                    >
+                        <Icon icon="tabler:search" class="w-4 h-4 mr-2" />
+                        {m.documents_search_articles()}
+                    </Button>
                     <div class="relative">
                         <input
                             type="file"
@@ -591,7 +979,7 @@
                         />
                         <Button
                             disabled={uploadingBibtex}
-                            variant="secondary"
+                            variant="primary"
                             iconLeft={uploadingBibtex ? "heroicons:arrow-path" : "heroicons:document-arrow-up"}
                         >
                             {uploadingBibtex ? m.documents_uploading() : m.documents_upload_bibtex()}
@@ -606,36 +994,42 @@
             <div class="mb-6 p-4 bg-secondary-50 rounded-lg border border-secondary-200">
                 <Heading level="h4" size="md" class="mb-4">{m.documents_add_new_citation()}</Heading>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="md:col-span-2">
+                    <div class="md:col-span-2 space-y-2">
+                        <Label for="citation-title" required>{m.documents_title_label()}</Label>
                         <Input
+                            id="citation-title"
                             bind:value={newCitation.title}
-                            label={m.documents_title_label()}
                             placeholder={m.documents_title_placeholder()}
                             required
                         />
                     </div>
-                    <div class="md:col-span-2">
+                    <div class="md:col-span-2 space-y-2">
+                        <Label for="citation-authors" required>{m.documents_authors_label()}</Label>
                         <Input
+                            id="citation-authors"
                             value={newCitation.authors.join(', ')}
                             onkeyup={(e) => {
                                 const target = e.target as HTMLInputElement;
                                 newCitation.authors = target.value.split(',').map(author => author.trim()).filter(author => author.length > 0);
                             }}
-                            label={m.documents_authors_label()}
                             placeholder={m.documents_authors_placeholder()}
                             required
                         />
                     </div>
-                    <Input
-                        bind:value={newCitation.year}
-                        label={m.documents_year_label()}
-                        type="number"
-                        placeholder="2024"
-                    />
-                    <div>
+                    <div class="space-y-2">
+                        <Label for="citation-year">{m.documents_year_label()}</Label>
+                        <Input
+                            id="citation-year"
+                            bind:value={newCitation.year}
+                            type="number"
+                            placeholder="2024"
+                        />
+                    </div>
+                    <div class="space-y-2">
+                        <Label for="citation-type">{m.documents_type_label()}</Label>
                         <Select
+                            id="citation-type"
                             bind:value={newCitation.type}
-                            label={m.documents_type_label()}
                             options={citationTypes}
                             onchange={() => {
                                 // Clear irrelevant fields when switching to webpage
@@ -651,44 +1045,65 @@
                     </div>
                     {#if newCitation.type === 'webpage'}
                         <!-- Webpage-specific fields -->
-                        <Input
-                            bind:value={newCitation.url}
-                            label={m.documents_url_label()}
-                            placeholder={m.documents_url_placeholder()}
-                            required
-                        />
+                        <div class="md:col-span-2 space-y-2">
+                            <Label for="citation-webpage-url" required>{m.documents_url_label()}</Label>
+                            <Input
+                                id="citation-webpage-url"
+                                bind:value={newCitation.url}
+                                placeholder={m.documents_url_placeholder()}
+                                required
+                            />
+                        </div>
                     {:else}
                         <!-- Academic publication fields -->
-                        <Input
-                            bind:value={newCitation.journal}
-                            label={m.documents_journal_label()}
-                            placeholder={m.documents_journal_placeholder()}
-                        />
-                        <Input
-                            bind:value={newCitation.volume}
-                            label={m.documents_volume_label()}
-                            placeholder={m.documents_volume_placeholder()}
-                        />
-                        <Input
-                            bind:value={newCitation.issue}
-                            label={m.documents_issue_label()}
-                            placeholder={m.documents_issue_placeholder()}
-                        />
-                        <Input
-                            bind:value={newCitation.pages}
-                            label={m.documents_pages_label()}
-                            placeholder={m.documents_pages_placeholder()}
-                        />
-                        <Input
-                            bind:value={newCitation.doi}
-                            label={m.documents_doi_label()}
-                            placeholder={m.documents_doi_placeholder()}
-                        />
-                        <Input
-                            bind:value={newCitation.url}
-                            label={m.documents_url_label()}
-                            placeholder={m.documents_url_placeholder()}
-                        />
+                        <div class="space-y-2">
+                            <Label for="citation-journal">{m.documents_journal_label()}</Label>
+                            <Input
+                                id="citation-journal"
+                                bind:value={newCitation.journal}
+                                placeholder={m.documents_journal_placeholder()}
+                            />
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="citation-volume">{m.documents_volume_label()}</Label>
+                            <Input
+                                id="citation-volume"
+                                bind:value={newCitation.volume}
+                                placeholder={m.documents_volume_placeholder()}
+                            />
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="citation-issue">{m.documents_issue_label()}</Label>
+                            <Input
+                                id="citation-issue"
+                                bind:value={newCitation.issue}
+                                placeholder={m.documents_issue_placeholder()}
+                            />
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="citation-pages">{m.documents_pages_label()}</Label>
+                            <Input
+                                id="citation-pages"
+                                bind:value={newCitation.pages}
+                                placeholder={m.documents_pages_placeholder()}
+                            />
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="citation-doi">{m.documents_doi_label()}</Label>
+                            <Input
+                                id="citation-doi"
+                                bind:value={newCitation.doi}
+                                placeholder={m.documents_doi_placeholder()}
+                            />
+                        </div>
+                        <div class="space-y-2">
+                            <Label for="citation-url">{m.documents_url_label()}</Label>
+                            <Input
+                                id="citation-url"
+                                bind:value={newCitation.url}
+                                placeholder={m.documents_url_placeholder()}
+                            />
+                        </div>
                     {/if}
                     
                     <!-- Abstract field (spans full width) -->
@@ -716,9 +1131,6 @@
                 <Icon icon="heroicons:document-plus" class="w-16 h-16 mx-auto mb-4 text-secondary-400" />
                 <h3 class="text-lg font-medium text-secondary-900 mb-2">{m.documents_no_citations_title()}</h3>
                 <p class="text-secondary-500 mb-4">{m.documents_no_citations_subtitle()}</p>
-                <Button onclick={() => showAddCitationForm = true} variant="primary">
-                    {m.documents_add_first_citation()}
-                </Button>
             </div>
         {:else}
             <!-- Batch Selection Controls -->
@@ -929,36 +1341,42 @@
                             <div class="mt-4 p-4 bg-primary-50 rounded-lg border border-primary-200">
                                 <Heading level="h4" size="md" class="mb-4">{m.documents_edit_citation()}</Heading>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div class="md:col-span-2">
+                                    <div class="md:col-span-2 space-y-2">
+                                        <Label for="edit-citation-title" required>{m.documents_title_label()}</Label>
                                         <Input
+                                            id="edit-citation-title"
                                             bind:value={editingCitation.title}
-                                            label={m.documents_title_label()}
                                             placeholder={m.documents_title_placeholder()}
                                             required
                                         />
                                     </div>
-                                    <div class="md:col-span-2">
+                                    <div class="md:col-span-2 space-y-2">
+                                        <Label for="edit-citation-authors" required>{m.documents_authors_label()}</Label>
                                         <Input
+                                            id="edit-citation-authors"
                                             value={editingCitation.authors.join(', ')}
                                             onkeyup={(e) => {
                                                 const target = e.target as HTMLInputElement;
                                                 editingCitation.authors = target.value.split(',').map(author => author.trim()).filter(author => author.length > 0);
                                             }}
-                                            label={m.documents_authors_label()}
                                             placeholder={m.documents_authors_placeholder()}
                                             required
                                         />
                                     </div>
-                                    <Input
-                                        bind:value={editingCitation.year}
-                                        label={m.documents_year_label()}
-                                        type="number"
-                                        placeholder="2024"
-                                    />
-                                    <div>
+                                    <div class="space-y-2">
+                                        <Label for="edit-citation-year">{m.documents_year_label()}</Label>
+                                        <Input
+                                            id="edit-citation-year"
+                                            bind:value={editingCitation.year}
+                                            type="number"
+                                            placeholder="2024"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="edit-citation-type">{m.documents_type_label()}</Label>
                                         <Select
+                                            id="edit-citation-type"
                                             bind:value={editingCitation.type}
-                                            label={m.documents_type_label()}
                                             options={citationTypes}
                                             onchange={() => {
                                                 // Clear irrelevant fields when switching to webpage
@@ -974,44 +1392,65 @@
                                     </div>
                                     {#if editingCitation.type === 'webpage'}
                                         <!-- Webpage-specific fields -->
-                                        <Input
-                                            bind:value={editingCitation.url}
-                                            label={m.documents_url_label()}
-                                            placeholder={m.documents_url_placeholder()}
-                                            required
-                                        />
+                                        <div class="md:col-span-2 space-y-2">
+                                            <Label for="edit-citation-webpage-url" required>{m.documents_url_label()}</Label>
+                                            <Input
+                                                id="edit-citation-webpage-url"
+                                                bind:value={editingCitation.url}
+                                                placeholder={m.documents_url_placeholder()}
+                                                required
+                                            />
+                                        </div>
                                     {:else}
                                         <!-- Academic publication fields -->
-                                        <Input
-                                            bind:value={editingCitation.journal}
-                                            label={m.documents_journal_label()}
-                                            placeholder={m.documents_journal_placeholder()}
-                                        />
-                                        <Input
-                                            bind:value={editingCitation.volume}
-                                            label={m.documents_volume_label()}
-                                            placeholder={m.documents_volume_placeholder()}
-                                        />
-                                        <Input
-                                            bind:value={editingCitation.issue}
-                                            label={m.documents_issue_label()}
-                                            placeholder={m.documents_issue_placeholder()}
-                                        />
-                                        <Input
-                                            bind:value={editingCitation.pages}
-                                            label={m.documents_pages_label()}
-                                            placeholder={m.documents_pages_placeholder()}
-                                        />
-                                        <Input
-                                            bind:value={editingCitation.doi}
-                                            label={m.documents_doi_label()}
-                                            placeholder={m.documents_doi_placeholder()}
-                                        />
-                                        <Input
-                                            bind:value={editingCitation.url}
-                                            label={m.documents_url_label()}
-                                            placeholder={m.documents_url_placeholder()}
-                                        />
+                                        <div class="space-y-2">
+                                            <Label for="edit-citation-journal">{m.documents_journal_label()}</Label>
+                                            <Input
+                                                id="edit-citation-journal"
+                                                bind:value={editingCitation.journal}
+                                                placeholder={m.documents_journal_placeholder()}
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="edit-citation-volume">{m.documents_volume_label()}</Label>
+                                            <Input
+                                                id="edit-citation-volume"
+                                                bind:value={editingCitation.volume}
+                                                placeholder={m.documents_volume_placeholder()}
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="edit-citation-issue">{m.documents_issue_label()}</Label>
+                                            <Input
+                                                id="edit-citation-issue"
+                                                bind:value={editingCitation.issue}
+                                                placeholder={m.documents_issue_placeholder()}
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="edit-citation-pages">{m.documents_pages_label()}</Label>
+                                            <Input
+                                                id="edit-citation-pages"
+                                                bind:value={editingCitation.pages}
+                                                placeholder={m.documents_pages_placeholder()}
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="edit-citation-doi">{m.documents_doi_label()}</Label>
+                                            <Input
+                                                id="edit-citation-doi"
+                                                bind:value={editingCitation.doi}
+                                                placeholder={m.documents_doi_placeholder()}
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <Label for="edit-citation-url">{m.documents_url_label()}</Label>
+                                            <Input
+                                                id="edit-citation-url"
+                                                bind:value={editingCitation.url}
+                                                placeholder={m.documents_url_placeholder()}
+                                            />
+                                        </div>
                                     {/if}
                                     
                                     <!-- Abstract field (spans full width) -->
@@ -1071,7 +1510,7 @@
         </Button>
         <Button
             onclick={proceedToNextStep}
-            disabled={!canProceedToOutline()}
+            disabled={!canProceedToOutline() || isProcessing()}
             variant="primary"
             iconRight="heroicons:arrow-right"
         >
@@ -1079,3 +1518,10 @@
         </Button>
     </div>
 </div>
+
+<!-- Article Search Modal -->
+<ArticleSearchModal 
+	show={showArticleSearchModal}
+	onClose={() => showArticleSearchModal = false}
+	onAddCitation={handleAddCitationFromSearch}
+/>

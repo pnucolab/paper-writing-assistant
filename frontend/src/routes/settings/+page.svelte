@@ -221,7 +221,8 @@
 				// Filter models that support both temperature and tools parameters
 				const filteredModels = data.data.filter((model: any) => {
 					const supportedParams = model.supported_parameters || [];
-					return supportedParams.includes('tools');
+					const inputModalities = model.architecture.input_modalities || [];
+					return supportedParams.includes('tools') && inputModalities.includes('text') && inputModalities.includes('image');
 				});
 
 				const processedModels = filteredModels.map((model: any) => ({
@@ -292,8 +293,8 @@
 					method: 'GET',
 					headers: {
 						'Authorization': `Bearer ${currentOpenRouterApiKey}`,
-						'HTTP-Referer': window.location.origin,
-						'X-Title': 'Paper Writer Assistant'
+						//'HTTP-Referer': window.location.origin,
+						//'X-Title': 'Paper Writer Assistant'
 					}
 				});
 

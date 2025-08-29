@@ -1,6 +1,6 @@
 <script lang="ts">
 	type CardVariant = 'default' | 'elevated' | 'outline';
-	type CardSize = 'sm' | 'md' | 'lg';
+	type CardSize = 'xs' | 'sm' | 'md' | 'lg';
 
 	interface Props {
 		title?: string;
@@ -62,6 +62,8 @@
 	function getContentClasses() {
 		// Spacing tokens: 4 / 8 / 12 / 16 / 24 / 32 from style guide
 		switch (size) {
+			case 'xs':
+				return 'p-1';
 			case 'sm': 
 				return 'p-4';     // 16px
 			case 'lg': 
@@ -73,6 +75,8 @@
 
 	function getHeaderClasses() {
 		switch (size) {
+			case 'xs':
+				return 'px-1 pt-1 pb-1';
 			case 'sm': 
 				return 'px-4 pt-4 pb-4';
 			case 'lg': 
@@ -84,6 +88,8 @@
 
 	function getFooterClasses() {
 		switch (size) {
+			case 'xs':
+				return 'px-1 pb-1 pt-1';
 			case 'sm': 
 				return 'px-4 pb-4 pt-4';
 			case 'lg': 
@@ -102,6 +108,9 @@
 
 		let sizeClasses = '';
 		switch (size) {
+			case 'xs':
+				sizeClasses = 'text-sm';      // 14px
+				break;
 			case 'sm': 
 				sizeClasses = 'text-base';    // 16px
 				break;

@@ -37,6 +37,10 @@
 	// Load paper format from previous step
 	let paperFormat = $state<{paperType: string, targetLength: number, targetLanguage: string}>({paperType: 'research', targetLength: 5000, targetLanguage: 'English'});
 
+	// File summaries from documents step
+	let figureFiles = $state<{ name: string; summary?: string }[]>([]);
+	let supplementaryFiles = $state<{ name: string; summary?: string }[]>([]);
+
 	// Research focus data
 	let researchFocus = $state('');
 	
@@ -148,7 +152,9 @@
 				researchFocus,
 				citationsContext,
 				prompts?.agenda,
-				prompts?.gap
+				prompts?.gap,
+				figureFiles,
+				supplementaryFiles
 			);
 			
 			// Add strong language enforcement to ensure AI responds in same language as UI
@@ -210,11 +216,32 @@
 			const agenda = prompts?.agenda || m.focus_prompts_research_agenda();
 			let welcomeMessage: string;
 			
-			if (citations && citations.length > 0) {
-				welcomeMessage = m.focus_ai_welcome_with_citations({
+			// Count available resources
+			const hasCitations = citations && citations.length > 0;
+			const hasFigures = figureFiles && figureFiles.length > 0;
+			const hasSupplementary = supplementaryFiles && supplementaryFiles.length > 0;
+			
+			// Build resource list
+			let resourceList: string[] = [];
+			if (hasCitations) {
+				resourceList.push(`${citations.length} citation${citations.length === 1 ? '' : 's'}`);
+			}
+			if (hasFigures) {
+				resourceList.push(`${figureFiles.length} figure${figureFiles.length === 1 ? '' : 's'}`);
+			}
+			if (hasSupplementary) {
+				resourceList.push(`${supplementaryFiles.length} supplementary file${supplementaryFiles.length === 1 ? '' : 's'}`);
+			}
+			
+			if (resourceList.length > 0) {
+				const resourceString = resourceList.length === 1 
+					? resourceList[0]
+					: resourceList.slice(0, -1).join(', ') + ' and ' + resourceList[resourceList.length - 1];
+				
+				welcomeMessage = m.focus_ai_welcome_with_resources({
 					paperType,
 					agenda,
-					count: citations.length
+					resources: resourceString
 				});
 			} else {
 				welcomeMessage = m.focus_ai_welcome_base({
@@ -288,7 +315,9 @@
 				paperFormat.paperType,
 				paperFormat.targetLength,
 				citations.length,
-				getLocale()
+				getLocale(),
+				figureFiles,
+				supplementaryFiles
 			);
 
 			const userPrompt = `Based on this research conversation, generate a comprehensive research focus statement:
@@ -353,6 +382,26 @@ ${conversationHistory}`;
 			if (savedDocuments) {
 				const documentsData = JSON.parse(savedDocuments);
 				citations = documentsData.citations || [];
+				
+				// Load figure files with summaries
+				if (documentsData.figureFiles) {
+					figureFiles = documentsData.figureFiles
+						.filter((file: any) => file.summary) // Only include files with summaries
+						.map((file: any) => ({
+							name: file.name,
+							summary: file.summary
+						}));
+				}
+				
+				// Load supplementary files with summaries
+				if (documentsData.uploadedFiles) {
+					supplementaryFiles = documentsData.uploadedFiles
+						.filter((file: any) => file.summary) // Only include files with summaries
+						.map((file: any) => ({
+							name: file.name,
+							summary: file.summary
+						}));
+				}
 			}
 			
 			// Load focus data
@@ -464,8 +513,10 @@ ${conversationHistory}`;
                         <div class="flex justify-start">
                             <div class="relative group max-w-lg px-4 py-2 rounded-lg bg-white border border-secondary-200 text-secondary-900">
                                 <div class="flex items-end">
-                                    <MarkdownRenderer content={streamingMessageContent} class="text-sm" />
-                                    <span class="animate-pulse ml-1">|</span>
+                                    <MarkdownRenderer content={streamingMessageContent} class="text-sm" thinking={!streamingMessageContent.trim()} />
+                                    {#if streamingMessageContent.trim()}
+                                        <span class="animate-pulse ml-1">|</span>
+                                    {/if}
                                 </div>
                             </div>
                         </div>

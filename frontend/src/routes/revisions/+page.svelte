@@ -13,6 +13,7 @@
 	import { getRevisionChatbotPrompt } from '$lib/utils/prompts';
 	import { marked } from 'marked';
 	import { LLMClient, getLLMSettings } from '$lib/utils/llm';
+	import { generateUUID } from '$lib/utils/uuid';
 
 	interface RevisionProject {
 		id: string;
@@ -158,7 +159,7 @@
 			}
 
 			const newProject: RevisionProject = {
-				id: crypto.randomUUID(),
+				id: generateUUID(),
 				title: file.name.replace(/\.[^/.]+$/, ""),
 				source: 'upload',
 				content: content,
@@ -190,7 +191,7 @@
 			}
 
 			const newProject: RevisionProject = {
-				id: crypto.randomUUID(),
+				id: generateUUID(),
 				title: draft.projectTitle,
 				source: 'draft',
 				sourceId: draft.id,

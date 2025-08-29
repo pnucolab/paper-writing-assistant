@@ -32,7 +32,8 @@
 	// State
 	let currentStep = $state<WorkflowStep>('format');
 	let citations = $state<Citation[]>([]);
-	let uploadedFiles = $state<{ id: string; name: string; type: string; size: number }[]>([]);
+	let uploadedFiles = $state<{ id: string; name: string; type: string; size: number; url?: string; summary?: string; isProcessing?: boolean }[]>([]);
+	let figureFiles = $state<{ id: string; name: string; type: string; size: number; url?: string; thumbnail?: string; summary?: string; isProcessing?: boolean }[]>([]);
 	let currentDraft = $state<Draft | null>(null);
 	let drafts = $state<Draft[]>([]);
 	
@@ -331,6 +332,7 @@
 				draftId={currentDraft.id}
 				bind:citations={citations}
 				bind:uploadedFiles={uploadedFiles}
+				bind:figureFiles={figureFiles}
 				onNextStep={nextStep}
 				onPreviousStep={previousStep}
 			/>

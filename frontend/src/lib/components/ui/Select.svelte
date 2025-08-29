@@ -15,7 +15,6 @@
 	interface Props {
 		id?: string;
 		value?: string | number;
-		label?: string;
 		placeholder?: string;
 		helpText?: string;
 		errorMessage?: string;
@@ -31,7 +30,6 @@
 	let {
 		id,
 		value = $bindable(''),
-		label,
 		placeholder,
 		helpText,
 		errorMessage,
@@ -79,12 +77,6 @@
 		return [...baseClasses, sizeClasses, errorClasses, className].join(' ');
 	}
 
-	function getLabelClasses() {
-		return [
-			'block text-sm font-medium mb-2',
-			'text-secondary-700'               // Secondary text from style guide
-		].join(' ');
-	}
 
 	function getHelpTextClasses() {
 		return errorMessage 
@@ -93,8 +85,7 @@
 	}
 </script>
 
-<div class="space-y-2">
-	<div class="relative">
+<div class="relative">
 		<select
 			id={id}
 			bind:value
@@ -140,12 +131,11 @@
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
 			</svg>
 		</div>
-	</div>
-	
-	<!-- Help text or error message -->
-	{#if helpText || errorMessage}
-		<div class={getHelpTextClasses()}>
-			{errorMessage || helpText}
-		</div>
-	{/if}
 </div>
+
+<!-- Help text or error message -->
+{#if helpText || errorMessage}
+	<div class={getHelpTextClasses()}>
+		{errorMessage || helpText}
+	</div>
+{/if}

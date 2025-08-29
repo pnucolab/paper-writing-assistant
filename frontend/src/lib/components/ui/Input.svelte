@@ -1,12 +1,11 @@
 <script lang="ts">
 	type InputSize = 'sm' | 'md' | 'lg';
-	type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 'url' | 'tel';
+	type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 'url' | 'tel' | 'date';
 
 	interface Props {
 		id?: string;
 		value?: string | number;
 		type?: InputType;
-		label?: string;
 		placeholder?: string;
 		helpText?: string;
 		errorMessage?: string;
@@ -26,7 +25,6 @@
 		id,
 		value = $bindable(''),
 		type = 'text',
-		label,
 		placeholder = '',
 		helpText,
 		errorMessage,
@@ -80,12 +78,6 @@
 		return [...baseClasses, sizeClasses, errorClasses, rightPadding, className].join(' ');
 	}
 
-	function getLabelClasses() {
-		return [
-			'block text-sm font-medium mb-2',
-			'text-secondary-700'               // Secondary text from style guide
-		].join(' ');
-	}
 
 	function getHelpTextClasses() {
 		return errorMessage 
@@ -94,51 +86,35 @@
 	}
 </script>
 
-<div class="space-y-2">
-	{#if label}
-		<label 
-			for={inputId}
-			class={getLabelClasses()}
-		>
-			{label}
-			{#if required}
-				<span class="text-red-500">*</span>
-			{/if}
-		</label>
-	{/if}
-	
-	<div class="relative">
-		<input
-			id={inputId}
-			{type}
-			bind:value
-			{placeholder}
-			{disabled}
-			{required}
-			{min}
-			{max}
-			{step}
-			{onkeyup}
-			{oninput}
-			class={getInputClasses()}
-		/>
-		
-		<!-- Right snippet for icons, buttons, etc. -->
-		{#if right}
-			<div class="absolute right-3 top-1/2 transform -translate-y-1/2">
-				{@render right()}
-			</div>
+<input
+	id={inputId}
+	{type}
+	bind:value
+	{placeholder}
+	{disabled}
+	{required}
+	{min}
+	{max}
+	{step}
+	{onkeyup}
+	{oninput}
+	class={getInputClasses()}
+/>
+
+<!-- Right snippet for icons, buttons, etc. -->
+{#if right}
+	<div class="absolute right-3 top-1/2 transform -translate-y-1/2">
+		{@render right()}
+	</div>
+{/if}
+
+<!-- Help text or error message -->
+{#if helpText || errorMessage}
+	<div class={getHelpTextClasses()}>
+		{#if errorMessage}
+			{errorMessage}
+		{:else}
+			{@html helpText}
 		{/if}
 	</div>
-	
-	<!-- Help text or error message -->
-	{#if helpText || errorMessage}
-		<div class={getHelpTextClasses()}>
-			{#if errorMessage}
-				{errorMessage}
-			{:else}
-				{@html helpText}
-			{/if}
-		</div>
-	{/if}
-</div>
+{/if}

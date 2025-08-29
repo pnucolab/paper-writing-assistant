@@ -11,7 +11,7 @@
     import { m } from '$lib/paraglide/messages.js';
 
     import type { Citation, CitationContext } from '$lib/stores/drafts';
-	import { getSectionWritingPrompt } from '$lib/utils/prompts';
+	import { getSectionWritingPrompt, getFigureLegendsPrompt } from '$lib/utils/prompts';
 	import { generateReferencesSection } from '$lib/utils/citations';
 	import type { LLMClient } from '$lib/utils/llm';
 	import { getUnifiedSettings } from '$lib/stores/settings';
@@ -35,16 +35,23 @@
 	let writingStarted = $state(false);
 	let isGeneratingSection = $state(false);
 	let generatedReferences = $state('');
+	let generatedFigureLegends = $state('');
 	let generatedContent = $state(''); // Keep for now, will be replaced by combined sections
 	let sectionAllocations = $state<Array<{sectionTitle: string; wordCount: number}>>([]);
 	let generatedSections = $state<Array<{title: string; content: string; wordCount: number}>>([]);
 	let currentSectionIndex = $state(0);
 	let isFinished = $state(false);
 	
+	// File summaries from documents step
+	let figureFiles = $state<{ name: string; summary?: string }[]>([]);
+	let supplementaryFiles = $state<{ name: string; summary?: string }[]>([]);
+	
 	// Combine generated sections into single content for display
 	$effect(() => {
 		if (generatedSections.length > 0) {
-			const combinedContent = generatedSections.map(section => section.content).join('\n\n');
+			const sectionsContent = generatedSections.map(section => section.content).join('\n\n');
+			const figureLegendsSection = generatedFigureLegends ? '\n\n' + generatedFigureLegends : '';
+			const combinedContent = sectionsContent + figureLegendsSection;
 			// Normalize hyphens: replace non-breaking hyphens (‑) with regular hyphens (-)
 			generatedContent = combinedContent.replace(/‑/g, '-');
 		}
@@ -74,6 +81,7 @@
 		// Clear all previous content first
 		writingStarted = true;
 		generatedReferences = '';
+		generatedFigureLegends = '';
 		generatedContent = '';
 		generatedSections = [];
 		sectionAllocations = [];
@@ -87,7 +95,10 @@
 			// Step 2: Generate Sections Sequentially
 			await generateSectionsSequentially();
 
-			// Step 3: Generate References Section (programmatically)
+			// Step 3: Generate Figure Legends Section (if figures provided)
+			generatedFigureLegends = await generateFigureLegendsSection(figureFiles);
+
+			// Step 4: Generate References Section (programmatically)
 			const rawReferences = generateReferencesSection(citations, citationStyle, includeDoi);
 			// Normalize hyphens in references
 			generatedReferences = rawReferences.replace(/‑/g, '-');
@@ -144,7 +155,9 @@
 				multipleCitationExample,
 				researchFocus,
 				previousSections || undefined,
-				targetLanguage
+				targetLanguage,
+				figureFiles,
+				supplementaryFiles
 			);
 			const sectionUserPrompt = `Write the "${section.title}" section with approximately ${wordCount} words.`;
 
@@ -172,12 +185,78 @@
 		isGeneratingSection = false;
 	}
 
+	async function generateFigureLegendsSection(figureFiles: { name: string; summary?: string }[]): Promise<string> {
+		if (!figureFiles || figureFiles.length === 0) {
+			return '';
+		}
+
+		const figuresWithSummary = figureFiles.filter(file => file.summary);
+		if (figuresWithSummary.length === 0) {
+			return '';
+		}
+
+		if (!llmClient) {
+			// Fallback to simple legends if no LLM client
+			let legendsContent = '## Figure Legends\n\n';
+			figuresWithSummary.forEach((figure, index) => {
+				const figureNumber = index + 1;
+				legendsContent += `**Figure ${figureNumber}.** ${figure.summary}\n\n`;
+			});
+			return legendsContent;
+		}
+
+		try {
+			// Generate AI-powered figure legends
+			const systemPrompt = getFigureLegendsPrompt(figureFiles, targetLanguage);
+			const userPrompt = `Generate professional academic figure legends for the ${figuresWithSummary.length} provided figures.`;
+
+			let legendsContent = '';
+			await llmClient.chatCompletionStream(
+				[{ role: 'user', content: userPrompt }],
+				{
+					systemPrompt,
+					onChunk: (chunk) => {
+						legendsContent += chunk;
+						// Update the state for real-time display
+						generatedFigureLegends = legendsContent;
+					},
+					onComplete: () => {
+						generatedFigureLegends = legendsContent;
+					},
+					onError: (error) => {
+						console.error('Error generating figure legends:', error);
+						// Fallback to simple legends on error
+						let fallbackContent = '## Figure Legends\n\n';
+						figuresWithSummary.forEach((figure, index) => {
+							const figureNumber = index + 1;
+							fallbackContent += `**Figure ${figureNumber}.** ${figure.summary}\n\n`;
+						});
+						generatedFigureLegends = fallbackContent;
+						legendsContent = fallbackContent;
+					}
+				}
+			);
+
+			return legendsContent;
+		} catch (error) {
+			console.error('Failed to generate AI figure legends:', error);
+			// Fallback to simple legends
+			let legendsContent = '## Figure Legends\n\n';
+			figuresWithSummary.forEach((figure, index) => {
+				const figureNumber = index + 1;
+				legendsContent += `**Figure ${figureNumber}.** ${figure.summary}\n\n`;
+			});
+			return legendsContent;
+		}
+	}
+
 	async function autoSaveDraft() {
 		// Auto-save writing content and mark draft as completed
 		try {
-			// Combine title, main content and references
+			// Combine title, main content, figure legends, and references
 			const titleSection = `# ${paperTitle}\n\n`;
-			const fullContent = titleSection + generatedContent + '\n\n' + generatedReferences;
+			const figureLegendsSection = generatedFigureLegends ? generatedFigureLegends + '\n\n' : '';
+			const fullContent = titleSection + generatedContent + '\n\n' + figureLegendsSection + generatedReferences;
 			
 			// Get current model information at time of writing
 			const settings = getUnifiedSettings();
@@ -200,6 +279,7 @@
 				sectionAllocations,
 				generatedSections,
 				generatedReferences,
+				generatedFigureLegends,
 				modelName, // Save model info at top level for transparency report
 				providerType, // Save provider info at top level for transparency report
 				generationMetadata: {
@@ -282,6 +362,36 @@
 				researchFocus = focusData.researchFocus || '';
 			}
 
+			// Load figure files and supplementary data from documents step
+			try {
+				const documentsData = localStorage.getItem(`paperwriter-draft-${draftId}-documents`);
+				if (documentsData) {
+					const documents = JSON.parse(documentsData);
+					
+					// Load figure files with summaries
+					if (documents.figureFiles) {
+						figureFiles = documents.figureFiles
+							.filter((file: any) => file.summary) // Only include files with summaries
+							.map((file: any) => ({
+								name: file.name,
+								summary: file.summary
+							}));
+					}
+					
+					// Load supplementary files with summaries
+					if (documents.uploadedFiles) {
+						supplementaryFiles = documents.uploadedFiles
+							.filter((file: any) => file.summary) // Only include files with summaries
+							.map((file: any) => ({
+								name: file.name,
+								summary: file.summary
+							}));
+					}
+				}
+			} catch (error) {
+				console.error('Failed to load documents data:', error);
+			}
+
 			// Load previously generated writing content if it exists
 			const writingSaved = localStorage.getItem(`paperwriter-draft-${draftId}-writing`);
 			if (writingSaved) {
@@ -291,6 +401,7 @@
 				writingStarted = true;
 				isFinished = true;
 				generatedReferences = writingData.generatedReferences || '';
+				generatedFigureLegends = writingData.generatedFigureLegends || '';
 				sectionAllocations = writingData.sectionAllocations || [];
 				generatedSections = writingData.generatedSections || [];
 				

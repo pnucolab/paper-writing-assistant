@@ -20,12 +20,12 @@
 	}: Props = $props();
 
 	// Calculate pagination values
-	let totalPages = $derived(Math.ceil(totalItems / itemsPerPage));
+	let totalPages = $derived(Math.max(1, Math.ceil(totalItems / itemsPerPage)));
 	let startItem = $derived((currentPage - 1) * itemsPerPage + 1);
 	let endItem = $derived(Math.min(currentPage * itemsPerPage, totalItems));
 
 	// Generate page numbers to show
-	let visiblePages = $derived(() => {
+	let visiblePages = $derived.by(() => {
 		const pages: number[] = [];
 		const maxVisible = 7; // Total number of page buttons to show
 		
@@ -82,86 +82,78 @@
 		}
 	}
 
-	function getPageButtonClasses(page: number, isCurrent: boolean) {
-		const baseClasses = [
-			'relative inline-flex items-center justify-center',
-			'px-3 py-2 text-sm font-medium',
-			'border border-secondary-300',
-			'transition-colors duration-200'
-		];
-
-		if (isCurrent) {
-			baseClasses.push(
-				'z-10 bg-primary-600 text-white border-primary-600',
-				'hover:bg-primary-700 hover:border-primary-700'
-			);
-		} else {
-			baseClasses.push(
-				'bg-white text-secondary-700',
-				'hover:bg-secondary-50 hover:text-secondary-900'
-			);
+	function goToFirst() {
+		if (currentPage > 1) {
+			goToPage(1);
 		}
+	}
 
-		return baseClasses.join(' ');
+	function goToLast() {
+		if (currentPage < totalPages) {
+			goToPage(totalPages);
+		}
+	}
+
+	function getPageButtonClasses(isCurrent: boolean) {
+		const baseClasses = 'px-2 py-1 text-sm cursor-pointer select-none';
+		
+		if (isCurrent) {
+			return `${baseClasses} font-bold text-blue-600 underline`;
+		} else {
+			return `${baseClasses} text-secondary-600 hover:text-blue-600 hover:underline`;
+		}
 	}
 
 	function getNavButtonClasses(disabled: boolean) {
-		const baseClasses = [
-			'relative inline-flex items-center justify-center',
-			'px-3 py-2 text-sm font-medium',
-			'border border-secondary-300',
-			'transition-colors duration-200'
-		];
-
+		const baseClasses = 'px-2 py-1 text-sm select-none';
+		
 		if (disabled) {
-			baseClasses.push(
-				'bg-secondary-100 text-secondary-400 cursor-not-allowed'
-			);
+			return `${baseClasses} text-secondary-400 cursor-not-allowed`;
 		} else {
-			baseClasses.push(
-				'bg-white text-secondary-700',
-				'hover:bg-secondary-50 hover:text-secondary-900 cursor-pointer'
-			);
+			return `${baseClasses} text-secondary-600 hover:text-blue-600 cursor-pointer`;
 		}
-
-		return baseClasses.join(' ');
 	}
 </script>
 
 {#if totalPages > 1}
-	<div class="flex items-center justify-between {className}">
-		<!-- Pagination Info -->
+	<div class="flex items-center justify-center {className}">
 		{#if showInfo}
-			<div class="text-sm text-secondary-700">
+			<div class="text-sm text-secondary-700 mr-4">
 				Showing <span class="font-medium">{startItem}</span> to <span class="font-medium">{endItem}</span> of <span class="font-medium">{totalItems}</span> results
 			</div>
-		{:else}
-			<div></div>
 		{/if}
 
-		<!-- Pagination Controls -->
-		<nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-			<!-- Previous Button -->
+		<!-- Simple Pagination Controls -->
+		<div class="flex items-center space-x-1">
+			<!-- First Page -->
+			<button
+				onclick={goToFirst}
+				disabled={currentPage === 1}
+				class="{getNavButtonClasses(currentPage === 1)}"
+				aria-label="First page"
+			>
+				&laquo;
+			</button>
+
+			<!-- Previous Page -->
 			<button
 				onclick={goToPrevious}
 				disabled={currentPage === 1}
-				class="{getNavButtonClasses(currentPage === 1)} rounded-l-md"
+				class="{getNavButtonClasses(currentPage === 1)}"
 				aria-label="Previous page"
 			>
-				<Icon icon="heroicons:chevron-left" class="w-4 h-4" />
+				&lsaquo;
 			</button>
 
 			<!-- Page Numbers -->
 			{#each visiblePages as page}
 				{#if page === -1}
 					<!-- Ellipsis -->
-					<span class="relative inline-flex items-center px-3 py-2 border border-secondary-300 bg-white text-sm font-medium text-secondary-700">
-						...
-					</span>
+					<span class="px-2 py-1 text-sm text-secondary-500 select-none">...</span>
 				{:else}
 					<button
 						onclick={() => goToPage(page)}
-						class={getPageButtonClasses(page, page === currentPage)}
+						class="{getPageButtonClasses(page === currentPage)}"
 						aria-label="Page {page}"
 						aria-current={page === currentPage ? 'page' : undefined}
 					>
@@ -170,15 +162,25 @@
 				{/if}
 			{/each}
 
-			<!-- Next Button -->
+			<!-- Next Page -->
 			<button
 				onclick={goToNext}
 				disabled={currentPage === totalPages}
-				class="{getNavButtonClasses(currentPage === totalPages)} rounded-r-md"
+				class="{getNavButtonClasses(currentPage === totalPages)}"
 				aria-label="Next page"
 			>
-				<Icon icon="heroicons:chevron-right" class="w-4 h-4" />
+				&rsaquo;
 			</button>
-		</nav>
+
+			<!-- Last Page -->
+			<button
+				onclick={goToLast}
+				disabled={currentPage === totalPages}
+				class="{getNavButtonClasses(currentPage === totalPages)}"
+				aria-label="Last page"
+			>
+				&raquo;
+			</button>
+		</div>
 	</div>
 {/if}

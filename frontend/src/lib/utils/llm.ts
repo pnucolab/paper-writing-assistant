@@ -101,6 +101,42 @@ export class LLMClient {
 
 		return fullContent;
 	}
+
+	// Vision-enabled chat completion for image analysis
+	async visionCompletion(prompt: string, imageBase64: string, options?: any): Promise<{ content: string }> {
+		const response = await this.client.chat.completions.create({
+			model: this.config.modelName,
+			messages: [
+				{
+					role: 'user',
+					content: [
+						{
+							type: 'text',
+							text: prompt
+						},
+						{
+							type: 'image_url',
+							image_url: {
+								url: imageBase64
+							}
+						}
+					]
+				}
+			],
+			temperature: options?.temperature ?? this.config.temperature,
+			max_tokens: options?.maxTokens ?? this.config.maxTokens,
+			...options
+		});
+
+		const content = response.choices[0]?.message?.content;
+		if (!content) {
+			throw new Error('No content received from vision model response');
+		}
+		
+		return {
+			content: content
+		};
+	}
 }
 
 // Utility function to load LLM settings from unified localStorage

@@ -86,6 +86,10 @@
 	let defaultOutlineSections = $state<OutlineSection[]>([]);
 	// LLM client is passed as prop from parent
 	let researchFocus = $state('');
+	
+	// File summaries from documents step
+	let figureFiles = $state<{ name: string; summary?: string }[]>([]);
+	let supplementaryFiles = $state<{ name: string; summary?: string }[]>([]);
 
 	// Initialize default outline based on paper type
 	function initializeDefaultOutline(type: string): OutlineSection[] {
@@ -111,10 +115,11 @@
 			// Default for research and other types
 			return [
 				{ id: baseId(), title: m.outline_section_abstract(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.05) },
-				{ id: baseId(), title: m.outline_section_introduction(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.20) },
-				{ id: baseId(), title: m.outline_section_main_section_1(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.30) },
-				{ id: baseId(), title: m.outline_section_main_section_2(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.25) },
-				{ id: baseId(), title: m.outline_section_discussion(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.20) }
+				{ id: baseId(), title: m.outline_section_introduction(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.18) },
+				{ id: baseId(), title: m.outline_section_main_section_1(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.25) },
+				{ id: baseId(), title: m.outline_section_main_section_2(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.22) },
+				{ id: baseId(), title: m.outline_section_discussion(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.18) },
+				{ id: baseId(), title: m.outline_section_materials_methods(), bulletPoints: [], citationIndices: [], wordCount: Math.round(targetLength * 0.12) }
 			];
 		}
 	}
@@ -449,7 +454,7 @@
 		try {
 			// Use the unified prompt for all sections (including Abstract)
 			const allSectionTitles = paperOutline.map(s => s.title);
-			const baseSystemPrompt = getKeyPointsAndReferencesGenerationPrompt(section.title, paperType, targetLength, citationsContext, allSectionTitles, researchFocus);
+			const baseSystemPrompt = getKeyPointsAndReferencesGenerationPrompt(section.title, paperType, section.wordCount, citationsContext, allSectionTitles, researchFocus, figureFiles, supplementaryFiles);
 			
 			// Add strong language enforcement for key points generation (interface language, NOT target language)
 			const uiLanguage = getLocale();
@@ -583,12 +588,42 @@
 			console.error('Failed to load research focus:', error);
 		}
 
+		// Load figure files and supplementary data from documents step
+		try {
+			const documentsData = localStorage.getItem(`paperwriter-draft-${draftId}-documents`);
+			if (documentsData) {
+				const documents = JSON.parse(documentsData);
+				
+				// Load figure files with summaries
+				if (documents.figureFiles) {
+					figureFiles = documents.figureFiles
+						.filter((file: any) => file.summary) // Only include files with summaries
+						.map((file: any) => ({
+							name: file.name,
+							summary: file.summary
+						}));
+				}
+				
+				// Load supplementary files with summaries
+				if (documents.uploadedFiles) {
+					supplementaryFiles = documents.uploadedFiles
+						.filter((file: any) => file.summary) // Only include files with summaries
+						.map((file: any) => ({
+							name: file.name,
+							summary: file.summary
+						}));
+				}
+			}
+		} catch (error) {
+			console.error('Failed to load documents data:', error);
+		}
+
 		// Build citations context once
 		citationsContext = citations.map((citation) => ({
 			title: citation.title,
 			authors: citation.authors.join(', '),
 			year: citation.year,
-			abstract: citation.abstract?.substring(0, 300) || 'No abstract available'
+			abstract: citation.abstract || 'No abstract available'
 		}));
 
 		// Initialize default outline sections once

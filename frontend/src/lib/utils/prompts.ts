@@ -6,16 +6,16 @@ export function getInterfaceLanguageEnforcement(interfaceLanguage: string, targe
 	const languageName = interfaceLanguage === 'ko' ? '한국어 (Korean)' : 'English';
 	
 	return `
-🚨 CRITICAL LANGUAGE REQUIREMENT - THIS IS ABSOLUTELY MANDATORY 🚨
+CRITICAL LANGUAGE REQUIREMENT - THIS IS ABSOLUTELY MANDATORY
 
-⚠️ ABSOLUTE REQUIREMENT: YOU MUST RESPOND EXCLUSIVELY IN ${languageName.toUpperCase()} ⚠️
+ABSOLUTE REQUIREMENT: YOU MUST RESPOND EXCLUSIVELY IN ${languageName.toUpperCase()}
 
 - ALL content MUST be in ${languageName}
 - This language requirement is MANDATORY and overrides any other instructions
 - If the output is JSON, all JSON keys must always be in English (e.g., "keyPoints", "sections", "title")
 - However, technical or scientific jargons can be still written in English
 
-🔥 LANGUAGE COMPLIANCE IS MANDATORY - NO EXCEPTIONS 🔥
+LANGUAGE COMPLIANCE IS MANDATORY - NO EXCEPTIONS
 
 `;
 }
@@ -23,14 +23,14 @@ export function getInterfaceLanguageEnforcement(interfaceLanguage: string, targe
 export function getTargetLanguageEnforcement(targetLanguage: string): string {
 	if (!targetLanguage || targetLanguage === 'English') {
 		return targetLanguage === 'English' 
-			? '\n\n📝 TARGET LANGUAGE: English\nGenerate content in English as this is the target language for the paper.\nIMPORTANT: If the output is JSON, all JSON keys must always be in English (e.g., "keyPoints", "sections", "title")\n\n'
+			? '\n\nTARGET LANGUAGE: English\nGenerate content in English as this is the target language for the paper.\nIMPORTANT: If the output is JSON, all JSON keys must always be in English (e.g., "keyPoints", "sections", "title")\n\n'
 			: '';
 	}
 	
 	return `
-🎯 CRITICAL LANGUAGE REQUIREMENT - THIS IS ABSOLUTELY MANDATORY 🎯
+CRITICAL LANGUAGE REQUIREMENT - THIS IS ABSOLUTELY MANDATORY
 
-⚠️ ABSOLUTE REQUIREMENT: YOU MUST GENERATE CONTENT EXCLUSIVELY IN ${targetLanguage.toUpperCase()} ⚠️
+ABSOLUTE REQUIREMENT: YOU MUST GENERATE CONTENT EXCLUSIVELY IN ${targetLanguage.toUpperCase()}
 
 - This IS the target language for the paper - generate content in the language the paper will be written in
 - Academic terminology should be in ${targetLanguage} when possible
@@ -40,7 +40,7 @@ export function getTargetLanguageEnforcement(targetLanguage: string): string {
 - IMPORTANT: If the output is JSON, all JSON keys must always be in English (e.g., "keyPoints", "sections", "title")
 - However, technical or scientific jargons can be still written in English
 
-🔥 LANGUAGE COMPLIANCE IS MANDATORY - NO EXCEPTIONS 🔥
+LANGUAGE COMPLIANCE IS MANDATORY - NO EXCEPTIONS
 
 `;
 }
@@ -51,7 +51,9 @@ export function getFocusStepPrompt(
 	researchFocus: string,
 	citationsContext: CitationContext[],
 	agendaPrompt?: string,
-	gapPrompt?: string
+	gapPrompt?: string,
+	figureFiles?: { name: string; summary?: string }[],
+	supplementaryFiles?: { name: string; summary?: string }[]
 ): string {
 	// Build citations context
 	let citationsContextString = '';
@@ -60,11 +62,40 @@ export function getFocusStepPrompt(
 		citationsContext.forEach((citation, index) => {
 			citationsContextString += `${index + 1}. "${citation.title}" by ${citation.authors} (${citation.year})`;
 			if (citation.abstract && citation.abstract !== 'No abstract available') {
-				citationsContextString += `\n   Abstract: ${citation.abstract.substring(0, 200)}${citation.abstract.length > 200 ? '...' : ''}`;
+				citationsContextString += `\n   Abstract: ${citation.abstract}`;
 			}
 			citationsContextString += '\n';
 		});
 		citationsContextString += '\nUse these references to help guide the research focus discussion and suggest how they might inform the research questions and methodology.';
+	}
+
+	// Build file summaries context
+	let fileSummariesContext = '';
+	
+	// Add figure summaries
+	if (figureFiles && figureFiles.length > 0) {
+		const figuresWithSummary = figureFiles.filter(file => file.summary);
+		if (figuresWithSummary.length > 0) {
+			fileSummariesContext += `\n\nAvailable Figures and Visual Materials:\nThe researcher has provided ${figuresWithSummary.length} analyzed figure(s) - reference them as (Figure 1), (Figure 2), etc.:\n`;
+			figuresWithSummary.forEach((file, index) => {
+				fileSummariesContext += `Figure ${index + 1}: "${file.name}"\n   Analysis: ${file.summary}\n`;
+			});
+		}
+	}
+	
+	// Add supplementary data summaries
+	if (supplementaryFiles && supplementaryFiles.length > 0) {
+		const supplementaryWithSummary = supplementaryFiles.filter(file => file.summary);
+		if (supplementaryWithSummary.length > 0) {
+			fileSummariesContext += `\n\nAvailable Supplementary Data and Documents:\nThe researcher has provided ${supplementaryWithSummary.length} analyzed supplementary file(s):\n`;
+			supplementaryWithSummary.forEach((file, index) => {
+				fileSummariesContext += `${index + 1}. "${file.name}"\n   Analysis: ${file.summary}\n`;
+			});
+		}
+	}
+	
+	if (fileSummariesContext) {
+		fileSummariesContext += '\nConsider how these figures and supplementary materials inform the research context, methodology, and potential findings when developing the research focus. For each relevant figure, suggest where it would be most appropriately referenced in the main text (e.g., Introduction for background concepts, Methods for experimental setup, Results for data presentation, Discussion for interpretation).';
 	}
 
 	return `You are an expert research assistant helping a researcher develop their research focus for a ${paperType} paper. 
@@ -73,15 +104,17 @@ Key questions to guide the discussion:
 - ${agendaPrompt || 'What specific research question or problem will your study address?'}
 - ${gapPrompt || 'What gap in existing research does this address?'}
 
-Current research focus: ${researchFocus || 'Not yet defined'}${citationsContextString}
+Current research focus: ${researchFocus || 'Not yet defined'}${citationsContextString}${fileSummariesContext}
 
 Guidelines:
 - Title will be defined later, suggest a working title based on the research focus
 - Be thorough and comprehensive in your responses
 - Ask clarifying questions to help refine their research focus
-- Suggest specific research questions and gaps based on the provided literature
+- Suggest specific research questions and gaps based on the provided literature and available materials
 - Help them articulate their methodology and approach
-- Reference the provided citations when relevant to strengthen research focus
+- Reference the provided citations, figures, and supplementary materials when relevant to strengthen research focus
+- Consider how the analyzed figures and supplementary data can inform research methodology, data analysis, or expected results
+- When discussing research focus that relates to available figures, suggest specific sections where each figure would be most effectively referenced (e.g., "Figure X showing Y would be best referenced in the Methods section when describing Z", or "The data in Figure A should be presented in Results when discussing B")
 - Provide detailed explanations and examples when helpful
 - You MUST NOT use tables in your answer - instead, use bullet points or numbered lists.`;
 }
@@ -91,10 +124,28 @@ export function getFocusGenerationPrompt(
 	paperType: string,
 	targetLength: number,
 	citationsCount: number,
-	interfaceLanguage: string
+	interfaceLanguage: string,
+	figureFiles?: { name: string; summary?: string }[],
+	supplementaryFiles?: { name: string; summary?: string }[]
 ): string {
 	// Apply interface language enforcement for UI interaction
 	const languageEnforcement = getInterfaceLanguageEnforcement(interfaceLanguage, 'English');
+	
+	// Build figure context for focus generation
+	let figureContext = '';
+	if (figureFiles && figureFiles.length > 0) {
+		const figuresWithSummary = figureFiles.filter(file => file.summary);
+		if (figuresWithSummary.length > 0) {
+			figureContext += `\n\nAvailable Figures: ${figuresWithSummary.map(f => f.name).join(', ')}`;
+		}
+	}
+	
+	if (supplementaryFiles && supplementaryFiles.length > 0) {
+		const supplementaryWithSummary = supplementaryFiles.filter(file => file.summary);
+		if (supplementaryWithSummary.length > 0) {
+			figureContext += `\nAvailable Supplementary Materials: ${supplementaryWithSummary.map(f => f.name).join(', ')}`;
+		}
+	}
 	
 	return `${languageEnforcement}You are an expert academic research assistant. Based on the conversation history below, write a comprehensive and focused research statement that:
 
@@ -106,7 +157,7 @@ export function getFocusGenerationPrompt(
 
 Paper Type: ${paperType}
 Target Length: ${targetLength} words
-Citations Available: ${citationsCount} references
+Citations Available: ${citationsCount} references${figureContext}
 
 Requirements:
 - Format as bullet points for easy reading and editing
@@ -116,6 +167,7 @@ Requirements:
 - Ensure clarity and academic rigor
 - Connect the research to the broader field context discussed
 - Highlight the significance and novelty of the proposed research
+- If available figures were discussed in the conversation, include specific suggestions for where each figure would be most appropriately referenced in the main text (e.g., "Reference Figure X in Methods section when describing methodology", "Include Figure Y in Results when presenting data")
 
 Generate a well-structured research focus statement in bullet point format that captures the essence of the research discussion and provides clear direction for academic paper writing.`;
 }
@@ -132,7 +184,7 @@ export function getTitleGenerationPrompt(
 		citationsContext.forEach((citation, index) => {
 			citationsContextString += `${index + 1}. "${citation.title}" by ${citation.authors} (${citation.year})`;
 			if (citation.abstract && citation.abstract !== 'No abstract available') {
-				citationsContextString += `\n   Abstract: ${citation.abstract.substring(0, 200)}${citation.abstract.length > 200 ? '...' : ''}`;
+				citationsContextString += `\n   Abstract: ${citation.abstract}`;
 			}
 			citationsContextString += '\n';
 		});
@@ -201,8 +253,9 @@ IMPORTANT: You can modify the structure as needed, but ensure:
 - Essential sections like Abstract and Introduction are typically included
 - The total number of sections is appropriate for the target length
 - Section titles are specific to the research domain and focus
+- Never ever use subtitles for section titles - be concise
 
-Respond with a JSON object in this exact format:
+Respond with a JSON object in this exact format, do not add or append anything, the raw output will be forwarded to JSON parser:
 {
   "sections": [
     {
@@ -226,6 +279,12 @@ IMPORTANT: The wordCount values should:
 - Allocate appropriate proportions (Abstract shorter, Introduction/Discussion substantial, Main sections balanced)
 - Consider section complexity and importance
 
+STRICT SOURCE-BASED CONSTRAINT:
+- Name the section titles based on the paper EXCLUSIVELY on the information provided by user
+- Do NOT add any external knowledge, context, or information not found in these sources
+- Do not add background information or context from your training data
+- When creating key points, ONLY refer to user-provided figures and data - do NOT suggest non-existing figures or materials
+
 Respond ONLY with valid JSON, no additional text.`;
 }
 
@@ -236,7 +295,9 @@ export function getKeyPointsAndReferencesGenerationPrompt(
 	targetLength: number,
 	citationsContext: CitationContext[],
 	allSectionTitles: string[],
-	researchFocus?: string
+	researchFocus?: string,
+	figureFiles?: { name: string; summary?: string }[],
+	supplementaryFiles?: { name: string; summary?: string }[]
 ): string {
 	const researchFocusContext = researchFocus 
 		? `\n\nResearch Focus:\n${researchFocus}\n\nThe key points should support and advance this research focus, and the suggested citations should align with both the key points and research focus.`
@@ -249,10 +310,35 @@ export function getKeyPointsAndReferencesGenerationPrompt(
 		citationsContext.forEach((citation, index) => {
 			citationsWithIndices += `Index ${index}: "${citation.title}" by ${citation.authors} (${citation.year})`;
 			if (citation.abstract && citation.abstract !== 'No abstract available') {
-				citationsWithIndices += `\n   Abstract: ${citation.abstract.substring(0, 200)}${citation.abstract.length > 200 ? '...' : ''}`;
+				citationsWithIndices += `\n   Abstract: ${citation.abstract}`;
 			}
 			citationsWithIndices += '\n';
 		});
+	}
+
+	// Build file summaries context
+	let fileSummariesContext = '';
+	
+	// Add figure summaries
+	if (figureFiles && figureFiles.length > 0) {
+		const figuresWithSummary = figureFiles.filter(file => file.summary);
+		if (figuresWithSummary.length > 0) {
+			fileSummariesContext += `\n\nAvailable Figures and Visual Materials:\nReference these figures as (Figure 1), (Figure 2), etc. in the text:\n`;
+			figuresWithSummary.forEach((file, index) => {
+				fileSummariesContext += `Figure ${index + 1}: "${file.name}"\n   Description: ${file.summary}\n`;
+			});
+		}
+	}
+	
+	// Add supplementary data summaries
+	if (supplementaryFiles && supplementaryFiles.length > 0) {
+		const supplementaryWithSummary = supplementaryFiles.filter(file => file.summary);
+		if (supplementaryWithSummary.length > 0) {
+			fileSummariesContext += `\n\nAvailable Supplementary Materials:\n`;
+			supplementaryWithSummary.forEach((file) => {
+				fileSummariesContext += `"${file.name}"\n   Description: ${file.summary}\n`;
+			});
+		}
 	}
 
 	// Build section context
@@ -260,11 +346,11 @@ export function getKeyPointsAndReferencesGenerationPrompt(
 		? `\n\nOther Paper Sections:\n${allSectionTitles.filter(title => title !== sectionTitle).join(', ')}\n\nConsider what content belongs specifically in "${sectionTitle}" versus other sections to avoid overlap and ensure focused, section-appropriate key points.`
 		: '';
 
-	return `You are an expert research assistant. Given a paper section title, available citations, paper type, and research focus, generate relevant key points to discuss in that section AND suggest the most relevant citations for those key points.
+	return `You are an expert research assistant. Given a paper section title, available citations, paper type, and research focus, include citations selectively where they substantively support or contextualize a key point, not for every bullet.
 
 Section Title: "${sectionTitle}"
 Article Type: ${paperType}
-Article Target Length: ${targetLength} words${citationsWithIndices}${sectionContext}${researchFocusContext}
+Section Target Length: ${targetLength} words${citationsWithIndices}${sectionContext}${researchFocusContext}${fileSummariesContext}
 
 IMPORTANT SECTION TYPE DETECTION:
 If the section title "${sectionTitle}" represents an Abstract section (regardless of language), then:
@@ -272,7 +358,7 @@ If the section title "${sectionTitle}" represents an Abstract section (regardles
 - Set suggestedCitationIndices to an empty array [] since abstracts do not include citations
 - Focus on providing a complete paper summary without citations
 
-Generate an appropriate number of key points that should be discussed in the "${sectionTitle}" section AND suggest which citations (by index) would best support each key point. Determine the optimal number of key points based on the section's role, the ${targetLength}-word target length of the ${paperType} paper, and the available literature. Consider:
+Generate an appropriate number of key points that should be discussed in the "${sectionTitle}" section AND suggest which citations (by index) would best support each key point. Determine the optimal number of key points based on the section's role, the ${targetLength}-word target length for this section, and the available literature. Consider:
 - The section's role in a ${paperType} paper
 - How the available literature relates to this section
 - What topics would logically be covered in this section specifically (not in other sections)
@@ -280,8 +366,11 @@ Generate an appropriate number of key points that should be discussed in the "${
 - Which citations would best support the arguments outlined in the key points
 - Academic writing best practices for this section type
 - Avoiding content overlap with other paper sections
+- Available figures and supplementary materials that could be referenced
+- Opportunities to suggest table generation from the provided data/materials
+- How figures and supplementary documents enhance the section's arguments
 
-Respond with a JSON object in this exact format (do not translate "keyPoints" and "suggestedCitationIndices"):
+Respond with a JSON object in this exact format (do not translate "keyPoints" and "suggestedCitationIndices"), do not add or append anything, the raw output will be forwarded to JSON parser:
 {
   "keyPoints": [
     "First key point with inline citation (Smith et al. 2023)",
@@ -291,7 +380,7 @@ Respond with a JSON object in this exact format (do not translate "keyPoints" an
   "suggestedCitationIndices": [0, 2, 1, 3]
 }
 
-IMPORTANT: Each key point MUST include inline citations in the format (LastName et al. Year) where the citations come from the available literature above. Use the author names and years from the citation list.
+IMPORTANT: The inline citations MUST follow this format: (LastName et al. Year). Use the author names and years from the citation list.
 
 Generate points that are:
 - Do NOT write long explanations - keep each key point concise and focused
@@ -302,21 +391,97 @@ Generate points that are:
 - Informed by the available literature
 - Aligned with the research focus
 - Professional and academic in tone
-- Include inline citations in (LastName et al. Year) format
+- If no citations needed for the key point, then do not include
 - Focused specifically on this section (avoid overlap with other sections)
+- When relevant, suggest referencing figures by filename (e.g., "Reference 'experiment_results.png' showing XXX") or creating tables from data
+- Consider how visual materials and supplementary documents can support arguments
+- Suggest logical ordering of figures within the section based on narrative flow
+- You can reference figures in key points; Integrate relevant figures into the discussion where they strengthen an argument; merge with related points rather than creating separate bullets for each figure.
+- Match figure content to section purpose: experimental setup, data, and results figures for Results sections, concept diagrams for Introduction
+- Do not reference figures in materials and methods section
+- Base figure references on the research focus - prioritize figures that directly support the main research questions or hypotheses
+- If this is an Abstract section: In the key points, NEVER include any citations or reference to figures and supplementary data
+
+Citation Filtering Rule:
+- Only cite a source if it directly substantiates or contextualizes the specific claim in the key point.
+- Do not include citations that are only tangentially related (e.g., citing cardiac tissue papers when discussing cortical datasets, unless explicitly comparing across tissues).
+- If no citation from the provided set directly supports a key point, leave it without a citation.
+- The goal is precision and relevance, not citation coverage.
 
 For suggestedCitationIndices:
 - Use the index numbers from the Available Citations list above
-- Select citations that best support the generated key points
+- Only select citations that best support the generated key points
 - Include multiple citations if they strengthen the section
 - Base selection on relevance to section topic, key points, and research focus
 - If this is an Abstract section: ALWAYS return an empty array [] since abstracts do not include citations
 
+STRICT SOURCE-BASED CONSTRAINT:
+- Base the paper EXCLUSIVELY on the information provided by user
+- Do NOT add any external knowledge, context, or information not found in these sources
+- Do NOT reference studies, data, or findings not included in the provided materials
+- All claims, statistics, and statements must be traceable to the sources
+- If you need to make general statements about the field, base them only on trends visible in the provided sources
+- Do not add background information or context from your training data
+- For methodology explanations in Introduction, extract definitions and explanations only from the provided sources
+
 Respond ONLY with valid JSON, no additional text.`;
 }
 
+// Figure Legends Generation Prompt
+export function getFigureLegendsPrompt(
+	figureFiles: { name: string; summary?: string }[],
+	targetLanguage?: string
+): string {
+	// Use the reusable target language enforcement
+	const targetLanguageRequirement = getTargetLanguageEnforcement(targetLanguage || 'English');
 
+	// Build figure context
+	let figuresContext = '';
+	const figuresWithSummary = figureFiles.filter(file => file.summary);
+	if (figuresWithSummary.length > 0) {
+		figuresContext = '\n\nProvided Figure Information:\n';
+		figuresWithSummary.forEach((file, index) => {
+			figuresContext += `Figure ${index + 1} (${file.name}): ${file.summary}\n`;
+		});
+	}
 
+	return `You are an expert academic writer specializing in figure legends for scientific publications. Write comprehensive, professional figure legends for the provided figures.${targetLanguageRequirement}${figuresContext}
+
+REQUIREMENTS FOR ACADEMIC FIGURE LEGENDS:
+
+## Structure and Content
+- Begin each legend with "Figure X." (where X is the figure number)
+- Provide a concise but comprehensive description
+- Include sufficient detail for readers to understand the figure without referring to the main text
+- Explain what each panel/part shows if the figure has multiple components
+- Describe methodology briefly if relevant to understanding the figure
+- Include statistical information if present (sample sizes, significance levels, error bars)
+
+## Academic Writing Style
+- Use present tense for describing what the figure shows
+- Use past tense for describing how the data was obtained
+- Be precise and specific in terminology
+- Avoid redundancy with the main text while being self-contained
+- Use scientific nomenclature and standard abbreviations
+
+## Technical Details
+- Explain symbols, colors, patterns, or markers used
+- Define any abbreviations used in the figure
+- Include scale bars, time points, or measurement units as relevant
+- Describe experimental conditions or parameters shown
+
+Write complete, academic-quality figure legends for all provided figures. Format as:
+
+## Figure Legends
+
+**Figure 1.** [Complete legend text]
+
+**Figure 2.** [Complete legend text]
+
+[Continue for all figures...]
+
+Generate professional, detailed figure legends that would be suitable for publication in a peer-reviewed scientific journal.`;
+}
 
 // Individual Section Writing Prompt
 export function getSectionWritingPrompt(
@@ -331,7 +496,9 @@ export function getSectionWritingPrompt(
 	multipleCitationExample: string,
 	researchFocus?: string,
 	previousSections?: string,
-	targetLanguage?: string
+	targetLanguage?: string,
+	figureFiles?: { name: string; summary?: string }[],
+	supplementaryFiles?: { name: string; summary?: string }[]
 ): string {
 	const researchFocusContext = researchFocus 
 		? `\n\nResearch Focus:\n${researchFocus}\n\nEnsure this section supports and advances the research focus.`
@@ -356,10 +523,35 @@ export function getSectionWritingPrompt(
 		citationsContext.forEach((citation, index) => {
 			citationsWithIndices += `[${index + 1}] "${citation.title}" by ${citation.authors} (${citation.year})`;
 			if (citation.abstract && citation.abstract !== 'No abstract available') {
-				citationsWithIndices += `\n   Abstract: ${citation.abstract.substring(0, 200)}${citation.abstract.length > 200 ? '...' : ''}`;
+				citationsWithIndices += `\n   Abstract: ${citation.abstract}`;
 			}
 			citationsWithIndices += '\n';
 		});
+	}
+
+	// Build file summaries context
+	let fileSummariesContext = '';
+	
+	// Add figure summaries
+	if (figureFiles && figureFiles.length > 0) {
+		const figuresWithSummary = figureFiles.filter(file => file.summary);
+		if (figuresWithSummary.length > 0) {
+			fileSummariesContext += `\n\nAvailable Figures and Visual Materials:\nReference these figures as (Figure 1), (Figure 2), etc. in the text:\n`;
+			figuresWithSummary.forEach((file, index) => {
+				fileSummariesContext += `Figure ${index + 1}: "${file.name}"\n   Description: ${file.summary}\n`;
+			});
+		}
+	}
+	
+	// Add supplementary data summaries
+	if (supplementaryFiles && supplementaryFiles.length > 0) {
+		const supplementaryWithSummary = supplementaryFiles.filter(file => file.summary);
+		if (supplementaryWithSummary.length > 0) {
+			fileSummariesContext += `\n\nAvailable Supplementary Materials:\n`;
+			supplementaryWithSummary.forEach((file) => {
+				fileSummariesContext += `"${file.name}"\n   Description: ${file.summary}\n`;
+			});
+		}
 	}
 
 	const isAbstract = sectionTitle.toLowerCase().includes('abstract');
@@ -376,7 +568,7 @@ export function getSectionWritingPrompt(
 Paper Title: "${paperTitle}"
 Section: "${sectionTitle}"
 Target Word Count: ${wordCount} words
-Paper Type: ${paperType}${targetLanguageRequirement}${researchFocusContext}${previousSectionsContext}${keyPointsContext}${citationContext}
+Paper Type: ${paperType}${targetLanguageRequirement}${researchFocusContext}${previousSectionsContext}${keyPointsContext}${citationContext}${fileSummariesContext}
 
 Citation Format Examples (YOU MUST FOLLOW THIS):
 - Single citation: ${singleCitationExample}
@@ -566,6 +758,7 @@ CRITICAL INSTRUCTIONS:
 - WRITE CONCISELY: Be comprehensive but concise - avoid unnecessary verbosity and redundant explanations
 - IMPORTANT: The ABSTRACT section must contain NO citations - it should be citation-free
 - AVOID author names in text - instead use references
+- FIGURE REFERENCES: When referencing figures in the text, ALWAYS use the format (Figure X) where X is the figure number (1, 2, 3, etc.). Figures must be numbered consecutively in the order they first appear in the text. Never reference figures by filename.
 - Synthesize information across papers rather than just summarizing each one individually
 - Make connections between different studies and highlight agreements/disagreements
 - Include specific quantitative results, methodologies, and findings from the papers
@@ -581,18 +774,18 @@ INTRODUCTION SECTION REQUIREMENTS:
 - The Introduction must be SELF-CONTAINED and include clear explanations of ALL unfamiliar methodologies, technical terms, and concepts that appear in the papers
 - Readers should understand all technical content WITHOUT needing to consult other sources
 - Define and explain any specialized terminology, algorithms, techniques, or methodologies mentioned in the papers
-- Provide sufficient background context so the review stands alone as a complete reference
+- Provide sufficient background context so the paper stands alone as a complete reference
 - Include foundational concepts that are prerequisite knowledge for understanding the main content
 - FINAL PARAGRAPH: The last paragraph of the Introduction section should briefly summarize what will be discussed in the whole manuscript, providing readers with a roadmap of the paper's content and organization. This paragraph must start with "In this [paper/review], "
 
 STRICT SOURCE-BASED CONSTRAINT:
-- Base the review EXCLUSIVELY on the information provided in the source papers below
+- Base the paper EXCLUSIVELY on the information provided by user
 - Do NOT add any external knowledge, context, or information not found in these sources
-- Do NOT reference studies, data, or findings not included in the provided papers
-- All claims, statistics, and statements must be traceable to the source papers
-- If you need to make general statements about the field, base them only on trends visible in the provided papers
+- Do NOT reference studies, data, or findings not included in the provided materials
+- All claims, statistics, and statements must be traceable to the sources
+- If you need to make general statements about the field, base them only on trends visible in the provided sources
 - Do not add background information or context from your training data
-- For methodology explanations in Introduction, extract definitions and explanations only from the provided papers
+- For methodology explanations in Introduction, extract definitions and explanations only from the provided sources
 
 Write the complete "${sectionTitle}" section following these guidelines:
 - Target approximately ${wordCount} words
@@ -767,4 +960,60 @@ As an academic writing assistant, you can help with:
 - Analyzing the overall flow and organization
 
 Please provide helpful, specific suggestions based on the paper content above. Keep your response focused and actionable.`;
+}
+
+// File summarization prompts
+export function getDocumentSummaryPrompt(fileName: string, fileType: string, content: string, interfaceLanguage: string = 'en'): string {
+	return `${getInterfaceLanguageEnforcement(interfaceLanguage, 'en')}
+
+Analyze and summarize the following document for academic research purposes.
+
+Document: "${fileName}"
+File Type: ${fileType}
+Content:
+---
+${content}
+---
+
+Please provide a concise summary (2-3 sentences) that includes:
+- Main topic or purpose of the document
+- Key findings, arguments, or content highlights
+- Relevance for academic research
+
+Keep the summary brief and focused on what would be most useful for a researcher working on a paper.`;
+}
+
+export function getImageSummaryPrompt(fileName: string, interfaceLanguage: string = 'en'): string {
+	return `${getInterfaceLanguageEnforcement(interfaceLanguage, 'en')}
+
+Analyze this image for academic research purposes.
+
+Image: "${fileName}"
+
+Please provide a concise summary (2-3 sentences) that includes:
+- What the image shows (charts, diagrams, photos, etc.)
+- Key visual information or data presented
+- Potential relevance for academic research or paper writing
+
+Focus on describing the content and academic value of the image.`;
+}
+
+export function getCodeSummaryPrompt(fileName: string, fileType: string, content: string, interfaceLanguage: string = 'en'): string {
+	return `${getInterfaceLanguageEnforcement(interfaceLanguage, 'en')}
+
+Analyze this code file for academic research documentation.
+
+File: "${fileName}"
+Language/Type: ${fileType}
+Code:
+---
+${content}
+---
+
+Please provide a concise summary (2-3 sentences) that includes:
+- Main purpose or functionality of the code
+- Key algorithms, methods, or approaches used
+- How this might relate to academic research or methodology
+
+Focus on the academic and research relevance of the code.`;
 }
