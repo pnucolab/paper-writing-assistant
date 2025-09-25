@@ -6,7 +6,14 @@ const config = {
 	// Consult https://svelte.dev/docs/kit/integrations
 	// for more information about preprocessors
 	preprocess: vitePreprocess(),
-	kit: { adapter: adapter() }
+	kit: {
+		adapter: adapter({
+			fallback: 'index.html'
+		}),
+		prerender: {
+			handleMissingId: 'warn'
+		}
+	}
 };
 
 export default config;
