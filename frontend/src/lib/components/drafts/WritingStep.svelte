@@ -111,9 +111,6 @@
 			// Normalize hyphens in references
 			generatedReferences = rawReferences.replace(/‑/g, '-');
 
-			// Step 5: Revise all sections using AI revision prompts
-			await reviseAllSections();
-
 			isFinished = true;
 			
 			// Auto-save draft when generation is complete
@@ -223,18 +220,18 @@
 
 			let legendsContent = '';
 			await llmClient.chatCompletionStream(
-				[{ role: 'user', content: userPrompt }],
+				systemPrompt,
+				userPrompt,
+				(chunk) => {
+					legendsContent += chunk;
+					// Update the state for real-time display
+					generatedFigureLegends = legendsContent;
+				},
 				{
-					systemPrompt,
-					onChunk: (chunk) => {
-						legendsContent += chunk;
-						// Update the state for real-time display
-						generatedFigureLegends = legendsContent;
-					},
 					onComplete: () => {
 						generatedFigureLegends = legendsContent;
 					},
-					onError: (error) => {
+					onError: (error: any) => {
 						console.error('Error generating figure legends:', error);
 						// Fallback to simple legends on error
 						let fallbackContent = '## Figure Legends\n\n';
@@ -258,93 +255,6 @@
 				legendsContent += `**Figure ${figureNumber}.** ${figure.summary}\n\n`;
 			});
 			return legendsContent;
-		}
-	}
-
-	async function reviseAllSections() {
-		if (!llmClient || generatedSections.length === 0) {
-			return;
-		}
-
-		try {
-			isRevising = true;
-			revisedSections = [];
-			currentRevisionIndex = 0;
-
-			// Get the full manuscript for context
-			const fullManuscript = generatedSections.map(section => section.content).join('\n\n');
-
-			// Revise each section sequentially
-			for (let i = 0; i < generatedSections.length; i++) {
-				currentRevisionIndex = i;
-				const section = generatedSections[i];
-
-				// Step 1: Review the section to determine if it needs revision
-				const reviewSystemPrompt = getAIReviewerPrompt(section.content, fullManuscript);
-				
-				let reviewResponse = '';
-				await llmClient.chatCompletionStream(
-					reviewSystemPrompt,
-					`Please review this section of the academic paper and determine if it needs revision.`,
-					(chunk: string) => {
-						reviewResponse += chunk;
-					}
-				);
-
-				// Parse the review response to check if revision is needed
-				let needsRevision = false;
-				let reviewReason = '';
-				
-				try {
-					const reviewResult = JSON.parse(reviewResponse);
-					needsRevision = reviewResult.needs_revision;
-					reviewReason = reviewResult.reason;
-				} catch (error) {
-					// If JSON parsing fails, assume revision is needed and extract reason
-					needsRevision = true;
-					reviewReason = reviewResponse;
-				}
-
-				let revisedContent = section.content;
-
-				// Step 2: If revision is needed, revise the section
-				if (needsRevision) {
-					const revisionSystemPrompt = getAIRevisorPrompt(section.content, reviewReason, fullManuscript);
-					
-					revisedContent = '';
-					await llmClient.chatCompletionStream(
-						revisionSystemPrompt,
-						`Please revise this section based on the reviewer's feedback.`,
-						(chunk: string) => {
-							revisedContent += chunk;
-							// Update the current section being revised
-							const updatedRevisions = [...revisedSections];
-							if (updatedRevisions[i]) {
-								updatedRevisions[i].content = revisedContent;
-							} else {
-								updatedRevisions[i] = { 
-									title: section.title, 
-									content: revisedContent, 
-									wordCount: section.wordCount 
-								};
-							}
-							revisedSections = updatedRevisions;
-						}
-					);
-				}
-
-				// Finalize the revised section (or keep original if no revision needed)
-				revisedSections[i] = { 
-					title: section.title, 
-					content: revisedContent, 
-					wordCount: section.wordCount 
-				};
-			}
-
-			isRevising = false;
-		} catch (error) {
-			console.error('Failed to revise sections:', error);
-			isRevising = false;
 		}
 	}
 
