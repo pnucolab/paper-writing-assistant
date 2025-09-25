@@ -132,10 +132,35 @@ export class LLMClient {
 		if (!content) {
 			throw new Error('No content received from vision model response');
 		}
-		
+
 		return {
 			content: content
 		};
+	}
+
+	// JSON parsing wrapper around chatCompletion
+	async chatCompletionJSON<T = any>(systemPrompt: string, userPrompt: string, options?: any): Promise<T> {
+		const result = await this.chatCompletion(systemPrompt, userPrompt, options);
+		let content = result.content.trim();
+
+		// Remove markdown JSON formatting
+		if (content.startsWith('```json')) {
+			content = content.slice(7).trim();
+		} else if (content.startsWith('```')) {
+			content = content.slice(3).trim();
+		}
+		if (content.endsWith('```')) {
+			content = content.slice(0, -3).trim();
+		}
+
+		// Clean up whitespace and newlines
+		content = content.replace(/^\s+|\s+$/g, '').replace(/^\n+|\n+$/g, '');
+
+		try {
+			return JSON.parse(content) as T;
+		} catch (error) {
+			throw new Error(`Failed to parse JSON response: ${error}. Raw content: ${content}`);
+		}
 	}
 }
 

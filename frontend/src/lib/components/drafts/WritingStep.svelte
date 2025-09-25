@@ -11,7 +11,7 @@
     import { m } from '$lib/paraglide/messages.js';
 
     import type { Citation, CitationContext } from '$lib/stores/drafts';
-	import { getSectionWritingPrompt, getFigureLegendsPrompt } from '$lib/utils/prompts';
+	import { getSectionWritingPrompt, getFigureLegendsPrompt, getAIReviewerPrompt, getAIRevisorPrompt } from '$lib/utils/prompts';
 	import { generateReferencesSection } from '$lib/utils/citations';
 	import type { LLMClient } from '$lib/utils/llm';
 	import { getUnifiedSettings } from '$lib/stores/settings';
@@ -41,6 +41,9 @@
 	let generatedSections = $state<Array<{title: string; content: string; wordCount: number}>>([]);
 	let currentSectionIndex = $state(0);
 	let isFinished = $state(false);
+	let isRevising = $state(false);
+	let currentRevisionIndex = $state(0);
+	let revisedSections = $state<Array<{title: string; content: string; wordCount: number}>>([]);
 	
 	// File summaries from documents step
 	let figureFiles = $state<{ name: string; summary?: string }[]>([]);
@@ -48,8 +51,10 @@
 	
 	// Combine generated sections into single content for display
 	$effect(() => {
-		if (generatedSections.length > 0) {
-			const sectionsContent = generatedSections.map(section => section.content).join('\n\n');
+		// Use revised sections if available, otherwise use generated sections
+		const sectionsToUse = revisedSections.length > 0 ? revisedSections : generatedSections;
+		if (sectionsToUse.length > 0) {
+			const sectionsContent = sectionsToUse.map(section => section.content).join('\n\n');
 			const figureLegendsSection = generatedFigureLegends ? '\n\n' + generatedFigureLegends : '';
 			const combinedContent = sectionsContent + figureLegendsSection;
 			// Normalize hyphens: replace non-breaking hyphens (‑) with regular hyphens (-)
@@ -84,9 +89,12 @@
 		generatedFigureLegends = '';
 		generatedContent = '';
 		generatedSections = [];
+		revisedSections = [];
 		sectionAllocations = [];
 		currentSectionIndex = 0;
+		currentRevisionIndex = 0;
 		isFinished = false;
+		isRevising = false;
 
 		try {
 			// Step 1: Allocate Section Lengths
@@ -102,6 +110,9 @@
 			const rawReferences = generateReferencesSection(citations, citationStyle, includeDoi);
 			// Normalize hyphens in references
 			generatedReferences = rawReferences.replace(/‑/g, '-');
+
+			// Step 5: Revise all sections using AI revision prompts
+			await reviseAllSections();
 
 			isFinished = true;
 			
@@ -250,6 +261,93 @@
 		}
 	}
 
+	async function reviseAllSections() {
+		if (!llmClient || generatedSections.length === 0) {
+			return;
+		}
+
+		try {
+			isRevising = true;
+			revisedSections = [];
+			currentRevisionIndex = 0;
+
+			// Get the full manuscript for context
+			const fullManuscript = generatedSections.map(section => section.content).join('\n\n');
+
+			// Revise each section sequentially
+			for (let i = 0; i < generatedSections.length; i++) {
+				currentRevisionIndex = i;
+				const section = generatedSections[i];
+
+				// Step 1: Review the section to determine if it needs revision
+				const reviewSystemPrompt = getAIReviewerPrompt(section.content, fullManuscript);
+				
+				let reviewResponse = '';
+				await llmClient.chatCompletionStream(
+					reviewSystemPrompt,
+					`Please review this section of the academic paper and determine if it needs revision.`,
+					(chunk: string) => {
+						reviewResponse += chunk;
+					}
+				);
+
+				// Parse the review response to check if revision is needed
+				let needsRevision = false;
+				let reviewReason = '';
+				
+				try {
+					const reviewResult = JSON.parse(reviewResponse);
+					needsRevision = reviewResult.needs_revision;
+					reviewReason = reviewResult.reason;
+				} catch (error) {
+					// If JSON parsing fails, assume revision is needed and extract reason
+					needsRevision = true;
+					reviewReason = reviewResponse;
+				}
+
+				let revisedContent = section.content;
+
+				// Step 2: If revision is needed, revise the section
+				if (needsRevision) {
+					const revisionSystemPrompt = getAIRevisorPrompt(section.content, reviewReason, fullManuscript);
+					
+					revisedContent = '';
+					await llmClient.chatCompletionStream(
+						revisionSystemPrompt,
+						`Please revise this section based on the reviewer's feedback.`,
+						(chunk: string) => {
+							revisedContent += chunk;
+							// Update the current section being revised
+							const updatedRevisions = [...revisedSections];
+							if (updatedRevisions[i]) {
+								updatedRevisions[i].content = revisedContent;
+							} else {
+								updatedRevisions[i] = { 
+									title: section.title, 
+									content: revisedContent, 
+									wordCount: section.wordCount 
+								};
+							}
+							revisedSections = updatedRevisions;
+						}
+					);
+				}
+
+				// Finalize the revised section (or keep original if no revision needed)
+				revisedSections[i] = { 
+					title: section.title, 
+					content: revisedContent, 
+					wordCount: section.wordCount 
+				};
+			}
+
+			isRevising = false;
+		} catch (error) {
+			console.error('Failed to revise sections:', error);
+			isRevising = false;
+		}
+	}
+
 	async function autoSaveDraft() {
 		// Auto-save writing content and mark draft as completed
 		try {
@@ -278,12 +376,14 @@
 				paperContent: fullContent, // For backward compatibility
 				sectionAllocations,
 				generatedSections,
+				revisedSections, // Save revised sections
 				generatedReferences,
 				generatedFigureLegends,
 				modelName, // Save model info at top level for transparency report
 				providerType, // Save provider info at top level for transparency report
 				generationMetadata: {
 					sectionsGenerated: generatedSections.length,
+					sectionsRevised: revisedSections.length,
 					totalSections: paperOutline.length,
 					referencesCount: citations.length,
 					completedAt: new Date().toISOString()
@@ -404,6 +504,7 @@
 				generatedFigureLegends = writingData.generatedFigureLegends || '';
 				sectionAllocations = writingData.sectionAllocations || [];
 				generatedSections = writingData.generatedSections || [];
+				revisedSections = writingData.revisedSections || [];
 				
 				// The $effect will automatically update generatedContent from generatedSections
 				
@@ -437,6 +538,8 @@
                             {m.writing_ready_to_write({ title: paperTitle || m.writing_untitled_paper() })}
                         {:else if isGeneratingSection}
                             {m.writing_section_progress({ current: currentSectionIndex + 1, total: paperOutline.length })}
+                        {:else if isRevising}
+                            Revising Section {currentRevisionIndex + 1} of {generatedSections.length}
                         {:else if isFinished}
                             {m.writing_complete()}
                         {:else}

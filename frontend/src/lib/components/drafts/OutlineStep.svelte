@@ -231,8 +231,7 @@
 				}>;
 			}
 
-			const result = await llmClient.chatCompletion(systemPrompt, userPrompt);
-			const parsedResponse: OutlineResponse = JSON.parse(result.content);
+			const parsedResponse: OutlineResponse = await llmClient.chatCompletionJSON(systemPrompt, userPrompt);
 
 			// Validate JSON structure
 			if (!parsedResponse.sections || !Array.isArray(parsedResponse.sections)) {
@@ -468,8 +467,7 @@
 				suggestedCitationIndices: number[];
 			}
 
-			const result = await llmClient.chatCompletion(systemPrompt, userPrompt);
-			const parsedResponse: KeyPointsAndReferencesResponse = JSON.parse(result.content);
+			const parsedResponse: KeyPointsAndReferencesResponse = await llmClient.chatCompletionJSON(systemPrompt, userPrompt);
 
 			// Validate JSON structure
 			if (!parsedResponse.keyPoints || !Array.isArray(parsedResponse.keyPoints)) {
@@ -717,9 +715,10 @@
             <div>
                 <Heading level="h4" size="md" class="mb-4">{m.outline_custom_title()}</Heading>
                 <div class="space-y-3">
+					<Label for="custom-title">{m.outline_enter_title()}</Label>
                     <Input
+                        id="custom-title"
                         bind:value={paperTitle}
-                        label={m.outline_enter_title()}
                         placeholder={m.outline_title_placeholder()}
                         oninput={() => saveStructurePaper()}
                     />
@@ -997,7 +996,7 @@
 									
                                     <div class="max-h-40 overflow-y-auto border border-secondary-200 rounded p-3">
                                         <div class="space-y-2">
-                                            {#each getFilteredCitations(section.id) as citation, filteredIndex}
+                                            {#each getFilteredCitations(section.id) as citation}
                                                 {@const citationIndex = citations.findIndex(c => c.id === citation.id)}
                                                 <label class="flex items-start space-x-2 cursor-pointer p-2 rounded transition-colors {section.citationIndices.includes(citationIndex) ? 'bg-primary-100 border border-primary-200' : 'hover:bg-secondary-50'}">
                                                     <input

@@ -14,6 +14,7 @@
 	import { marked } from 'marked';
 	import { LLMClient, getLLMSettings } from '$lib/utils/llm';
 	import { generateUUID } from '$lib/utils/uuid';
+    import type { Content } from '@tiptap/core';
 
 	interface RevisionProject {
 		id: string;
@@ -256,8 +257,12 @@
 	}
 
 	// Update content
-	function updateContent(newContent: string) {
+	function updateContent(newContent: Content) {
 		if (!selectedProject) return;
+		if (typeof newContent !== 'string') {
+			console.warn('Received non-string content from editor');
+			return;
+		}
 		
 		// Only update if content actually changed to prevent reactive loops
 		if (selectedProject.content !== newContent) {
@@ -295,7 +300,9 @@
 	}
 
 	// Download as Markdown
-	function downloadAsMarkdown(project: RevisionProject) {
+	function downloadAsMarkdown(project: RevisionProject | null) {
+		if (!project) return;
+
 		const blob = new Blob([project.content], { type: 'text/markdown' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -308,7 +315,9 @@
 	}
 
 	// Download as DOCX using proper DOCX generation
-	async function downloadAsDocx(project: RevisionProject) {
+	async function downloadAsDocx(project: RevisionProject | null) {
+		if (!project) return;
+
 		try {
 			const { downloadDocxFile } = await import('$lib/utils/downloads');
 			await downloadDocxFile(project.content, project.title);
@@ -804,7 +813,6 @@ Please provide helpful, specific suggestions based on the paper content above. K
 			onFileSelect={handleFileUpload}
 			title={m.revisions_upload_title()}
 			description={m.revisions_drop_description()}
-			buttonText={m.revisions_choose_file()}
 			formatText={m.revisions_upload_formats()}
 		/>
 		

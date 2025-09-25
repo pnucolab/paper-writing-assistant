@@ -193,41 +193,51 @@
         
         <div class="space-y-6">
             <div class="space-y-4">
+                <Label for="paper-type">{m.format_paper_type_label()}</Label>
                 <Select
                     bind:value={paperType}
-                    label={m.format_paper_type_label()}
+                    id="paper-type"
                     onchange={() => savePaperFormat()}
                     options={paperTypes}
                 />
                 <hr class="border-secondary-200 mt-6 mb-4" />
-                <Select
-                    bind:value={targetLength}
-                    onchange={handleTargetLengthChange}
-                    label={m.format_target_length_label()}
-                    options={targetLengths}
-                />
+                <div class="space-y-2">
+                    <Label for="target-length">{m.format_target_length_label()}</Label>
+                    <Select
+                        bind:value={targetLength}
+                        id="target-length"
+                        onchange={handleTargetLengthChange}
+                        options={targetLengths}
+                    />
+                </div>
                 
                 {#if isCustomLength()}
-                    <Input
-                        bind:value={customLength}
-                        type="number"
-                        label={m.format_custom_length_label()}
-                        placeholder="Enter custom word count"
-                        min={100}
-                        max={50000}
-                        oninput={() => savePaperFormat()}
-                    />
+                    <div class="space-y-2">
+                        <Label for="custom-length">{m.format_custom_length_label()}</Label>
+                        <Input
+                            bind:value={customLength}
+                            id="custom-length"
+                            type="number"
+                            placeholder="Enter custom word count"
+                            min={100}
+                            max={50000}
+                            oninput={() => savePaperFormat()}
+                        />
+                    </div>
                 {/if}
                 
                 <hr class="border-secondary-200 mt-6 mb-4" />
                 
-                <Select
-                    bind:value={targetLanguage}
-                    label={m.format_target_language_label()}
-                    helpText={m.format_target_language_help()}
-                    onchange={() => savePaperFormat()}
-                    options={targetLanguages}
-                />
+                <div class="space-y-2">
+                    <Label for="target-language">{m.format_target_language_label()}</Label>
+                    <Select
+                        bind:value={targetLanguage}
+                        id="target-language"
+                        onchange={() => savePaperFormat()}
+                        options={targetLanguages}
+                    />
+                    <p class="text-sm text-secondary-500">{m.format_target_language_help()}</p>
+                </div>
             </div>
         </div>
     </Card>
@@ -248,27 +258,33 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <Select
-                            bind:value={citationStyle}
-                            label={m.format_citation_format_label()}
-                            helpText={m.format_citation_format_help()}
-                            options={citationStyles}
-                            onchange={() => savePaperFormat()}
-                        />
+                        <div class="space-y-2">
+                            <Label for="citation-style">{m.format_citation_format_label()}</Label>
+                            <Select
+                                bind:value={citationStyle}
+                                id="citation-style"
+                                options={citationStyles}
+                                onchange={() => savePaperFormat()}
+                            />
+                            <p class="text-sm text-secondary-500">{m.format_citation_format_help()}</p>
+                        </div>
                     </div>
 
                     <div>
-                        <Select
-                            bind:value={inlineCitationStyle}
-                            label={m.format_inline_citation_label()}
-                            helpText={m.format_inline_citation_help()}
-                            options={[
-                                { value: 'author-year', label: m.format_inline_citation_author_year() },
-                                { value: 'numeric', label: '[1]' },
-                                { value: 'parenthesis', label: '(1)' }
-                            ]}
-                            onchange={() => savePaperFormat()}
-                        />
+                        <div class="space-y-2">
+                            <Label for="inline-citation-style">{m.format_inline_citation_label()}</Label>
+                            <Select
+                                bind:value={inlineCitationStyle}
+                                id="inline-citation-style"
+                                options={[
+                                    { value: 'author-year', label: m.format_inline_citation_author_year() },
+                                    { value: 'numeric', label: '[1]' },
+                                    { value: 'parenthesis', label: '(1)' }
+                                ]}
+                                onchange={() => savePaperFormat()}
+                            />
+                            <p class="text-sm text-secondary-500">{m.format_inline_citation_help()}</p>
+                        </div>
                     </div>
                 </div>
             </div>
