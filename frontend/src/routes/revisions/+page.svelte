@@ -608,7 +608,7 @@ Please provide helpful, specific suggestions based on the paper content above. K
 			</Card>
 
 			<!-- AI Assistant Chatbot -->
-			<Card class="mt-6 {!selectedProject ? 'opacity-50' : ''}">
+			<Card class="mt-6 sticky top-4 {!selectedProject ? 'opacity-50' : ''}">
 				<div class="space-y-4">
 					<div class="flex items-center justify-between">
 						<h2 class="text-lg font-semibold text-gray-900">{m.chatbot_title()}</h2>
