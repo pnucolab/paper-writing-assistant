@@ -10,10 +10,11 @@
 	import FileDrop from '$lib/components/ui/FileDrop.svelte';
 	// i18n
 	import { m } from '$lib/paraglide/messages.js';
-	import { getRevisionChatbotPrompt } from '$lib/utils/prompts';
+	import { getRevisionChatbotPrompt, getAIRevisorPrompt } from '$lib/utils/prompts';
 	import { marked } from 'marked';
 	import { LLMClient, getLLMSettings } from '$lib/utils/llm';
 	import { generateUUID } from '$lib/utils/uuid';
+	import { performCustomRevision } from '$lib/utils/revision';
     import type { Content } from '@tiptap/core';
 
 	interface RevisionProject {
@@ -419,8 +420,8 @@
 			const llmConfig = getLLMSettings();
 			const llmClient = new LLMClient(llmConfig);
 			
-			// Generate system prompt and user prompt separately
-			const systemPrompt = `You are an AI assistant helping with academic paper revisions. You have access to the current draft content and can provide helpful suggestions.
+			// Enhanced agentic system prompt
+			const systemPrompt = `You are an agentic AI assistant helping with academic paper revisions. You can autonomously find and edit specific parts of the paper based on user requests.
 
 Current Paper: "${selectedProject.title}"
 Paper Content:
@@ -428,19 +429,31 @@ Paper Content:
 ${selectedProject.content}
 ---
 
-As an academic writing assistant, you can help with:
-- Reviewing and suggesting improvements to specific sections
-- Identifying areas that need more clarity or evidence
-- Suggesting better word choices or sentence structure
-- Checking for consistency in terminology and arguments
-- Recommending places where citations might be needed
-- Analyzing the overall flow and organization
+You have two modes of operation:
 
-Please provide helpful, specific suggestions based on the paper content above. Keep your response focused and actionable.`;
-			
+1. **ANALYSIS MODE**: Provide suggestions, reviews, and recommendations
+2. **AGENTIC MODE**: When the user requests changes, you should:
+   - Identify the specific text section that needs editing
+   - Provide the exact text that should be revised
+   - Include the user's revision instruction
+   - Format your response as: "AGENTIC_EDIT: [text to revise] | INSTRUCTION: [revision instruction]"
+
+Examples of agentic requests:
+- "Make the introduction more concise"
+- "Improve the clarity of the methodology section"
+- "Fix the grammar in the conclusion"
+- "Make the abstract more engaging"
+
+When you detect an agentic request, respond with the specific text to edit and instruction in the format above. Otherwise, provide helpful suggestions and analysis.`;
+
 			// Call the LLM with proper system/user prompt separation
 			const response = await llmClient.chatCompletion(systemPrompt, userMessage);
-			
+
+			// Check if the response contains an agentic edit request
+			if (response.content.includes('AGENTIC_EDIT:')) {
+				await handleAgenticEdit(response.content, userMessage);
+			}
+
 			// Add assistant response
 			chatHistory = [...chatHistory, { role: 'assistant', message: response.content }];
 			
@@ -462,6 +475,68 @@ Please provide helpful, specific suggestions based on the paper content above. K
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
 			sendChatMessage();
+		}
+	}
+
+	// Handle agentic edits using proper revision workflow
+	async function handleAgenticEdit(responseContent: string, originalUserMessage: string) {
+		try {
+			if (!selectedProject) return;
+
+			// Parse the agentic edit request
+			const editMatch = responseContent.match(/AGENTIC_EDIT:\s*(.*?)\s*\|\s*INSTRUCTION:\s*(.*?)(?=\n|$)/s);
+
+			if (!editMatch) {
+				const failureMessage = `⚠️ Could not parse the edit request. Please try rephrasing your request.`;
+				chatHistory = [...chatHistory, { role: 'assistant', message: failureMessage }];
+				return;
+			}
+
+			const textToRevise = editMatch[1].trim();
+			const revisionInstruction = editMatch[2].trim();
+
+			// Check if the text exists in the document
+			if (!selectedProject.content.includes(textToRevise)) {
+				const failureMessage = `⚠️ Could not find the specified text in the document. The text may have been paraphrased by the AI. Please try being more specific or copy the exact text you want to edit.`;
+				chatHistory = [...chatHistory, { role: 'assistant', message: failureMessage }];
+				return;
+			}
+
+			// Show processing message
+			chatHistory = [...chatHistory, { role: 'assistant', message: '🔄 Processing your revision request using AI Revisor...' }];
+
+			// Use performCustomRevision with the proper revision workflow
+			const revisionResult = await performCustomRevision(
+				textToRevise,
+				revisionInstruction,
+				selectedProject.content
+			);
+
+			// Apply the revision to the document
+			const updatedContent = selectedProject.content.replace(textToRevise, revisionResult.revisedText);
+			selectedProject.content = updatedContent;
+			selectedProject.lastModified = new Date().toISOString();
+			saveRevisionProjects();
+
+			// Add success message with details
+			const successMessage = `✅ **Revision Applied Successfully!**
+
+**Original Text:**
+${textToRevise}
+
+**Revised Text:**
+${revisionResult.revisedText}
+
+**Revision Instruction:** ${revisionInstruction}
+
+The document has been updated automatically.`;
+
+			chatHistory = [...chatHistory, { role: 'assistant', message: successMessage }];
+
+		} catch (error) {
+			console.error('Error applying agentic edit:', error);
+			const errorMessage = `❌ Error applying revision: ${error instanceof Error ? error.message : 'Unknown error'}`;
+			chatHistory = [...chatHistory, { role: 'assistant', message: errorMessage }];
 		}
 	}
 
