@@ -543,9 +543,9 @@ The document has been updated automatically.`;
 	// Update chat history when project changes
 	function updateChatContextForProject() {
 		if (selectedProject) {
-			// Reset chat with ready message - we already have the content loaded
+			// Reset chat with welcome message
 			chatHistory = [
-				{ role: 'assistant', message: m.chatbot_ready_to_help({ title: selectedProject.title }) }
+				{ role: 'assistant', message: m.chatbot_welcome() }
 			];
 		} else {
 			// Reset to no-project state

@@ -598,7 +598,6 @@
 	"create_draft_cancel": "취소",
 	"create_draft_creating": "생성 중...",
 	"create_draft_create": "초안 생성",
-	"chatbot_ready_to_help": "안녕하세요! 논문 분석과 **자동 텍스트 편집**을 도와드릴 수 있습니다. 개선할 섹션을 말씀해주세요 (예: \"서론을 더 간결하게 만들어주세요\"). 무엇을 도와드릴까요?",
 	"filedrop_title": "파일 선택",
 	"filedrop_description": "파일을 여기에 드롭하거나 클릭하여 선택",
 	"filedrop_supports": "지원 형식: {formats}",
