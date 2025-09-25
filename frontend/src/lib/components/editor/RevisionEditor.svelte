@@ -7,7 +7,7 @@
     import Modal from '$lib/components/ui/Modal.svelte';
     import Button from '$lib/components/ui/Button.svelte';
     import { WandSparkles, SearchCheck } from '@lucide/svelte';
-    import { performAIRevision, performCustomRevision, performAIFactCheck, createWordDiff } from '$lib/utils/revision';
+    import { performCustomRevision, performAIFactCheck, createWordDiff } from '$lib/utils/revision';
     import '$lib/utils/wikeddiff.js';
     import { marked } from 'marked';
 
@@ -25,6 +25,21 @@
     let content = $state<Content>(initialContent);
     let editor = $state<Editor>();
 
+    // Watch for changes to initialContent and update editor
+    $effect(() => {
+        if (editor && initialContent !== undefined && initialContent !== content) {
+            // Update editor content when initialContent prop changes
+            if (typeof initialContent === 'string') {
+                // If it's markdown string, set it directly
+                (editor.storage as any).markdown?.setMarkdown?.(initialContent) || editor.commands.setContent(initialContent);
+            } else {
+                // If it's JSON content, set it as JSON
+                editor.commands.setContent(initialContent);
+            }
+            content = initialContent;
+        }
+    });
+
     // Modal states for BubbleMenu actions
     let showReviseModal = $state(false);
     let showFactCheckModal = $state(false);
@@ -33,7 +48,6 @@
     let factCheckResult = $state('');
     let isLoadingRevision = $state(false);
     let isLoadingFactCheck = $state(false);
-    let revisionStage = $state(''); // 'reviewing' or 'revising'
     let customPrompt = $state('');
     let reviewerAssessment = $state('');
     let currentSelectionRange = $state({ from: 0, to: 0 });
@@ -51,44 +65,19 @@
     }
 
     // Event handlers for BubbleMenu
-    async function handleAIRevise(event: CustomEvent) {
+    function handleAIRevise(event: CustomEvent) {
         const { selectedText, selectionRange } = event.detail;
-        
+
         // Store selection range for later use
         currentSelectionRange = selectionRange;
-        
-        // Show modal immediately with loading state
+
+        // Show modal with selected text, but don't auto-revise
         originalText = selectedText;
-        revisedText = '';
-        isLoadingRevision = true;
-        revisionStage = 'reviewing';
+        revisedText = selectedText; // Initialize with original text
+        reviewerAssessment = '';
         showReviseModal = true;
-        
-        try {
-            // Get the full manuscript content for context
-            const fullManuscript = (editor?.storage as any).markdown?.getMarkdown?.() || editor?.getText();
-            
-            // Perform the AI revision workflow
-            const result = await performAIRevision(selectedText, fullManuscript);
-            
-            // Store reviewer assessment for display
-            reviewerAssessment = result.reason;
-            revisedText = result.revisedText || selectedText;
-            
-            // Update revision stage for UI feedback
-            if (result.needsRevision) {
-                revisionStage = 'revising';
-            }
-                
-        } catch (error) {
-            console.error('Failed to revise text:', error);
-            alert('Failed to revise text. Please check your LLM settings and try again.');
-            showReviseModal = false;
-        } finally {
-            isLoadingRevision = false;
-            revisionStage = '';
-        }
     }
+
 
     async function handleAIFactCheck(event: CustomEvent) {
         const { selectedText } = event.detail;
@@ -116,14 +105,9 @@
     }
 
     async function handleCustomRevision() {
-        if (!customPrompt.trim()) {
-            alert('Please enter revision instructions.');
-            return;
-        }
 
         // Update to show revision in progress
         isLoadingRevision = true;
-        revisionStage = 'custom-revising';
         
         try {
             // Get the full manuscript content for context
@@ -131,9 +115,12 @@
             
             // Use the current revised text as the base for further revision
             const textToRevise = revisedText || originalText;
-            
+
+            // Use a default prompt if none provided
+            const prompt = customPrompt.trim() || 'Improve this text by making it clearer, more concise, and better written while maintaining its original meaning and technical accuracy.';
+
             // Perform custom revision
-            const result = await performCustomRevision(textToRevise, customPrompt, fullManuscript);
+            const result = await performCustomRevision(textToRevise, prompt, fullManuscript);
             
             // Update UI with results
             reviewerAssessment = result.reviewerAssessment;
@@ -145,7 +132,6 @@
             alert('Failed to perform custom revision. Please check your LLM settings and try again.');
         } finally {
             isLoadingRevision = false;
-            revisionStage = '';
         }
     }
 
@@ -169,7 +155,6 @@
         originalText = '';
         revisedText = '';
         isLoadingRevision = false;
-        revisionStage = '';
         customPrompt = '';
         reviewerAssessment = '';
     }
@@ -226,21 +211,49 @@
                 </div>
             {/if}
             
+            <!-- Custom Revision Input -->
+            {#if originalText === revisedText && !reviewerAssessment && !isLoadingRevision}
+                <div class="space-y-4">
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <h4 class="text-sm font-semibold text-gray-900 mb-2">Selected Text:</h4>
+                        <div class="text-sm text-gray-700 whitespace-pre-wrap">{originalText}</div>
+                    </div>
+
+                    <!-- Custom Revision Input -->
+                    <div class="p-4 border border-gray-200 rounded-lg">
+                        <label for="customPrompt" class="block text-sm font-medium text-gray-700 mb-2">
+                            Revision instructions (optional):
+                        </label>
+                        <textarea
+                            id="customPrompt"
+                            bind:value={customPrompt}
+                            placeholder="Enter specific instructions for revision, or leave blank for general improvement (e.g., 'Make it more concise', 'Add more technical detail', 'Improve clarity')"
+                            class="w-full p-2 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            rows="3"
+                            disabled={isLoadingRevision}
+                        ></textarea>
+                        <div class="mt-3">
+                            <Button
+                                onclick={handleCustomRevision}
+                                variant="primary"
+                                size="sm"
+                                disabled={isLoadingRevision}
+                            >
+                                <WandSparkles class="w-4 h-4 mr-2" />
+                                Revise Text with AI
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            {/if}
+
             <!-- Unified Diff View -->
             {#if isLoadingRevision}
                 <div class="flex items-center justify-center py-8">
                     <WandSparkles class="w-6 h-6 animate-pulse mr-2" />
-                    {#if revisionStage === 'reviewing'}
-                        <span class="text-gray-500">Stage 1: Reviewer analyzing text for revision needs...</span>
-                    {:else if revisionStage === 'revising'}
-                        <span class="text-gray-500">Stage 2: Revisor improving the text...</span>
-                    {:else if revisionStage === 'custom-revising'}
-                        <span class="text-gray-500">Custom revision: Implementing your specific instructions...</span>
-                    {:else}
-                        <span class="text-gray-500">Analyzing and revising text...</span>
-                    {/if}
+                    <span class="text-gray-500">Applying revision instructions...</span>
                 </div>
-            {:else}
+            {:else if reviewerAssessment || originalText !== revisedText}
                 {#if originalText === revisedText}
                     <!-- No changes made - show original text -->
                     <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -251,8 +264,8 @@
                     <!-- Show diff when changes were made -->
                     {@html diffResult().diffResult}
                 {/if}
-                
-                <!-- Custom Revision Input -->
+
+                <!-- Custom Revision Input (After AI Revision) -->
                 <div class="mt-4 p-4 border border-gray-200 rounded-lg">
                     <label for="customPrompt" class="block text-sm font-medium text-gray-700 mb-2">
                         Additional revision instructions:
@@ -267,9 +280,9 @@
                     ></textarea>
                     {#if customPrompt.trim()}
                         <div class="mt-2">
-                            <Button 
-                                onclick={handleCustomRevision} 
-                                variant="primary" 
+                            <Button
+                                onclick={handleCustomRevision}
+                                variant="primary"
                                 size="sm"
                                 disabled={isLoadingRevision}
                             >
