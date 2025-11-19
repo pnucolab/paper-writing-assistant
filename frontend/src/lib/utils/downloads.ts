@@ -1,6 +1,7 @@
 import { toDocx } from 'mdast2docx';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
+import remarkGfm from "remark-gfm";
 import type { Citation } from '$lib/stores/drafts';
 import { listPlugin } from "@m2d/list";
 import { tablePlugin } from '@m2d/table';
@@ -44,7 +45,7 @@ export function downloadMarkdown(content: string, filename: string) {
 export async function downloadDocxFile(content: string, filename: string) {
 	try {
 		// Parse markdown to MDAST
-		const mdast = unified().use(remarkParse).parse(content);
+		const mdast = unified().use(remarkParse).use(remarkGfm).parse(content);
 		
 		// Convert to DOCX
 		const docxBlob = await toDocx(mdast, {
@@ -115,7 +116,7 @@ export async function downloadProjectReport(draftData: DraftData) {
 	
 	try {
 		// Parse markdown to MDAST
-		const mdast = unified().use(remarkParse).parse(reportContent);
+		const mdast = unified().use(remarkParse).use(remarkGfm).parse(reportContent);
 		
 		// Convert to DOCX
 		const docxBlob = await toDocx(mdast, {
@@ -182,24 +183,26 @@ export async function downloadProjectReport(draftData: DraftData) {
 
 function generateTransparencyReportMarkdown(draftData: DraftData): string {
 	const report: string[] = [];
-	
+
 	report.push('# AI-assisted Writing Transparency Report');
 	report.push('');
+
+	// Manuscript information table
 	report.push(`**Manuscript Title:** ${draftData.manuscriptTitle}`);
+	report.push('');
 	report.push(`**Report Generated:** ${new Date().toUTCString()}`);
-	
-	// Add AI model information
+	report.push('');
+
+	// Add AI model information table
 	if (draftData.modelName || draftData.providerType) {
-		report.push('');
 		report.push('## AI MODEL INFORMATION');
-		if (draftData.modelName) {
-			report.push(`**Model Used:** ${draftData.modelName}`);
-		}
-		if (draftData.providerType) {
-			report.push(`**Provider:** ${draftData.providerType}`);
-		}
+		report.push('');
+		report.push('| Model Used | Provider |');
+		report.push('|------------|----------|');
+		report.push(`| ${draftData.modelName || 'N/A'} | ${draftData.providerType || 'N/A'} |`);
+		report.push('');
 	}
-	
+
 	report.push('');
 	
 	if (draftData.researchFocus) {
