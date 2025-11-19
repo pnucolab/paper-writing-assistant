@@ -17,9 +17,9 @@
 <div class="{className}">
 	<nav class="flex space-x-2 border-b border-secondary-200">
 		{#each tabs as tab}
-			<a
+			<button
+				type="button"
 				onclick={() => onTabChange(tab.id)}
-				href="#{tab.id}"
 				tabindex="0"
 				class="relative px-4 py-3 font-medium text-sm transition-all duration-200 border-b-2 cursor-pointer select-none transform active:scale-95"
 				class:border-primary-600={activeTab === tab.id}
@@ -32,7 +32,7 @@
 				role="tab"
 			>
 				<span class="whitespace-nowrap">{tab.label}</span>
-			</a>
+			</button>
 		{/each}
 	</nav>
 </div>

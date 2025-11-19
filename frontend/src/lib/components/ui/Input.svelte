@@ -80,7 +80,7 @@
 
 
 	function getHelpTextClasses() {
-		return errorMessage 
+		return errorMessage
 			? 'text-sm text-red-600'      // Error color
 			: 'text-sm text-secondary-600';    // Secondary text from style guide
 	}
@@ -110,7 +110,7 @@
 
 <!-- Help text or error message -->
 {#if helpText || errorMessage}
-	<div class={getHelpTextClasses()}>
+	<div class="mt-1 {getHelpTextClasses()}">
 		{#if errorMessage}
 			{errorMessage}
 		{:else}

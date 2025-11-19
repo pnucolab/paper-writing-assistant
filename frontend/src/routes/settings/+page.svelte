@@ -401,23 +401,22 @@
 					onTabChange={(tabId) => currentProviderType = tabId as ProviderType}
 				/>
 
-				<!-- Hidden anchor elements for prerendering -->
-				<span id="openrouter" style="position: absolute; top: -1px; opacity: 0;"></span>
-				<span id="custom" style="position: absolute; top: -1px; opacity: 0;"></span>
-
 				<!-- OpenRouter Tab Content -->
 				{#if currentProviderType === 'openrouter'}
 					<div class="space-y-4">
 						<p class="text-sm text-gray-500">{m.settings_openrouter_tab_description()}</p>
-						
-						<Input
-							bind:value={currentOpenRouterApiKey}
-							type="password"
-							label={m.settings_api_key_label()}
-							placeholder={m.settings_api_key_placeholder()}
-							helpText={m.settings_api_key_help()}
-							required
-						/>
+
+						<div>
+							<Label for="openrouter-api-key" required>{m.settings_api_key_label()}</Label>
+							<Input
+								id="openrouter-api-key"
+								bind:value={currentOpenRouterApiKey}
+								type="password"
+								placeholder={m.settings_api_key_placeholder()}
+								helpText={m.settings_api_key_help()}
+								required
+							/>
+						</div>
 
 						<div class="flex items-center space-x-3">
 							<Button
@@ -474,30 +473,39 @@
 				{:else if currentProviderType === 'custom'}
 					<div class="space-y-4">
 						<p class="text-sm text-gray-500">{m.settings_custom_tab_description()}</p>
-						
-						<Input
-							bind:value={currentCustomEndpoint}
-							label={m.settings_custom_endpoint_label()}
-							placeholder={m.settings_custom_endpoint_placeholder()}
-							helpText={m.settings_custom_endpoint_help()}
-							required
-						/>
 
-						<Input
-							bind:value={currentCustomApiKey}
-							type="password"
-							label={m.settings_custom_api_key_label()}
-							placeholder={m.settings_custom_api_key_placeholder()}
-							helpText={m.settings_custom_api_key_help()}
-						/>
+						<div>
+							<Label for="custom-endpoint" required>{m.settings_custom_endpoint_label()}</Label>
+							<Input
+								id="custom-endpoint"
+								bind:value={currentCustomEndpoint}
+								placeholder={m.settings_custom_endpoint_placeholder()}
+								helpText={m.settings_custom_endpoint_help()}
+								required
+							/>
+						</div>
 
-						<Input
-							bind:value={currentCustomModelName}
-							label={m.settings_custom_model_name_label()}
-							placeholder={m.settings_custom_model_name_placeholder()}
-							helpText={m.settings_custom_model_name_help()}
-							required
-						/>
+						<div>
+							<Label for="custom-api-key">{m.settings_custom_api_key_label()}</Label>
+							<Input
+								id="custom-api-key"
+								bind:value={currentCustomApiKey}
+								type="password"
+								placeholder={m.settings_custom_api_key_placeholder()}
+								helpText={m.settings_custom_api_key_help()}
+							/>
+						</div>
+
+						<div>
+							<Label for="custom-model-name" required>{m.settings_custom_model_name_label()}</Label>
+							<Input
+								id="custom-model-name"
+								bind:value={currentCustomModelName}
+								placeholder={m.settings_custom_model_name_placeholder()}
+								helpText={m.settings_custom_model_name_help()}
+								required
+							/>
+						</div>
 
 						<div class="flex items-center space-x-3">
 							<Button
