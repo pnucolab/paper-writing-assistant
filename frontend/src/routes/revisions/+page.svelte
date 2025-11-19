@@ -29,6 +29,7 @@
 		aiSuggestions?: AISuggestion[];
 		validationResults?: ValidationResult[];
 		aiProcessed?: boolean; // Whether automatic AI processing has been completed
+		chatHistory?: Array<{role: 'user' | 'assistant', message: string}>; // Store chat history per project
 	}
 
 	interface AISuggestion {
@@ -247,10 +248,10 @@
 		selectedProject = project;
 		// TiptapEditor handles markdown directly, no need to convert
 		editorContent = project.content;
-		
-		// Update chatbot context
-		updateChatContextForProject();
-		
+
+		// Load chat history for this project
+		loadChatHistoryForProject(project);
+
 		// Update URL hash for bookmarking/sharing
 		if (browser) {
 			window.location.hash = project.id;
@@ -407,13 +408,14 @@
 
 	async function sendChatMessage() {
 		if (!chatMessage.trim() || !selectedProject || isSendingMessage) return;
-		
+
 		const userMessage = chatMessage;
 		chatMessage = '';
 		isSendingMessage = true;
-		
+
 		// Add user message
 		chatHistory = [...chatHistory, { role: 'user', message: userMessage }];
+		saveChatHistoryForProject();
 		
 		try {
 			// Get LLM settings
@@ -456,16 +458,18 @@ When you detect an agentic request, respond with the specific text to edit and i
 
 			// Add assistant response
 			chatHistory = [...chatHistory, { role: 'assistant', message: response.content }];
-			
+			saveChatHistoryForProject();
+
 		} catch (error) {
 			console.error('Error sending message to LLM:', error);
-			
+
 			// Add error message
-			const errorMessage = error instanceof Error && error.message.includes('Settings') 
-				? error.message 
+			const errorMessage = error instanceof Error && error.message.includes('Settings')
+				? error.message
 				: 'I encountered an error while processing your request. Please check your LLM settings in the Settings page.';
-				
+
 			chatHistory = [...chatHistory, { role: 'assistant', message: errorMessage }];
+			saveChatHistoryForProject();
 		} finally {
 			isSendingMessage = false;
 		}
@@ -489,6 +493,7 @@ When you detect an agentic request, respond with the specific text to edit and i
 			if (!editMatch) {
 				const failureMessage = `⚠️ Could not parse the edit request. Please try rephrasing your request.`;
 				chatHistory = [...chatHistory, { role: 'assistant', message: failureMessage }];
+				saveChatHistoryForProject();
 				return;
 			}
 
@@ -499,11 +504,13 @@ When you detect an agentic request, respond with the specific text to edit and i
 			if (!selectedProject.content.includes(textToRevise)) {
 				const failureMessage = `⚠️ Could not find the specified text in the document. The text may have been paraphrased by the AI. Please try being more specific or copy the exact text you want to edit.`;
 				chatHistory = [...chatHistory, { role: 'assistant', message: failureMessage }];
+				saveChatHistoryForProject();
 				return;
 			}
 
 			// Show processing message
 			chatHistory = [...chatHistory, { role: 'assistant', message: '🔄 Processing your revision request using AI Revisor...' }];
+			saveChatHistoryForProject();
 
 			// Use performCustomRevision with the proper revision workflow
 			const revisionResult = await performCustomRevision(
@@ -532,27 +539,37 @@ ${revisionResult.revisedText}
 The document has been updated automatically.`;
 
 			chatHistory = [...chatHistory, { role: 'assistant', message: successMessage }];
+			saveChatHistoryForProject();
 
 		} catch (error) {
 			console.error('Error applying agentic edit:', error);
 			const errorMessage = `❌ Error applying revision: ${error instanceof Error ? error.message : 'Unknown error'}`;
 			chatHistory = [...chatHistory, { role: 'assistant', message: errorMessage }];
+			saveChatHistoryForProject();
 		}
 	}
 
-	// Update chat history when project changes
-	function updateChatContextForProject() {
-		if (selectedProject) {
-			// Reset chat with welcome message
+	// Load chat history for selected project
+	function loadChatHistoryForProject(project: RevisionProject) {
+		if (project.chatHistory && project.chatHistory.length > 0) {
+			// Load existing chat history
+			chatHistory = project.chatHistory;
+		} else {
+			// Initialize with welcome message
 			chatHistory = [
 				{ role: 'assistant', message: m.chatbot_welcome() }
 			];
-		} else {
-			// Reset to no-project state
-			chatHistory = [
-				{ role: 'assistant', message: m.chatbot_no_project_selected() }
-			];
+			// Save initial state
+			saveChatHistoryForProject();
 		}
+	}
+
+	// Save current chat history to selected project
+	function saveChatHistoryForProject() {
+		if (!selectedProject) return;
+
+		selectedProject.chatHistory = chatHistory;
+		saveRevisionProjects();
 	}
 
 	// Initialize on mount
@@ -569,8 +586,6 @@ The document has been updated automatically.`;
 		// Handle URL query parameters after loading data
 		setTimeout(() => {
 			handleUrlQuery();
-			// Update chatbot context after initial loading
-			updateChatContextForProject();
 		}, 100);
 	});
 </script>
