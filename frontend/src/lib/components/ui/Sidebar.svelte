@@ -27,6 +27,11 @@
 			name: m.navigation_settings(),
 			href: '/settings',
 			icon: 'heroicons:cog-6-tooth'
+		},
+		{
+			name: m.navigation_backup(),
+			href: '/backup',
+			icon: 'heroicons:arrow-down-tray'
 		}
 	]);
 
