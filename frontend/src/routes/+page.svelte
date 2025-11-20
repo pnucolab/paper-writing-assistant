@@ -256,7 +256,9 @@
 	<footer class="bg-white py-8 border-t border-primary-100">
 		<div class="max-w-5xl mx-auto px-6">
 			<div class="text-center text-sm text-secondary-500">
-				Computational Omics Laboratory at Pusan National University © 2025, all rights reserved.
+				<a href="https://pnucolab.com/" target="_blank" rel="noopener noreferrer" class="hover:text-primary-600 transition-colors">
+					Computational Omics Laboratory at Pusan National University
+				</a> © 2025, all rights reserved.
 			</div>
 		</div>
 	</footer>
