@@ -11,7 +11,7 @@
 	});
 </script>
 
-<div class="min-h-screen bg-secondary-50">
+<div class="min-h-screen bg-primary-50">
 	<!-- Hero Section -->
 	<div class="relative overflow-hidden bg-white">
 		<!-- Subtle animated elements -->
@@ -20,29 +20,21 @@
 			<div class="absolute -bottom-40 -left-32 w-80 h-80 bg-primary-200/20 rounded-full mix-blend-multiply filter blur-xl animate-float animation-delay-2000"></div>
 		</div>
 
-		<div class="relative max-w-7xl mx-auto px-6 py-20">
+		<div class="relative max-w-7xl mx-auto px-6 py-24">
 			<div class="text-center">
-				<!-- Badge -->
-				<div class="mb-8 opacity-0 {mounted ? 'animate-fade-in-up' : ''}">
-					<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800 border border-primary-200">
-						<Icon icon="heroicons:sparkles" class="w-4 h-4 mr-2" />
-						{m.home_hero_badge()}
-					</span>
-				</div>
-
 				<!-- Main heading -->
-				<h1 class="text-4xl sm:text-5xl font-semibold text-secondary-900 mb-6 opacity-0 {mounted ? 'animate-fade-in-up animation-delay-200' : ''}">
+				<h1 class="text-4xl sm:text-5xl font-semibold text-secondary-900 mt-12 mb-6 opacity-0 {mounted ? 'animate-fade-in-up' : ''}">
 					{m.home_hero_title()}<br />
 					<span class="text-primary-600">{m.home_hero_title_highlight()}</span>
 				</h1>
 
 				<!-- Subtitle -->
-				<p class="text-xl text-secondary-600 mb-8 max-w-3xl mx-auto leading-relaxed opacity-0 {mounted ? 'animate-fade-in-up animation-delay-400' : ''}">
+				<p class="text-xl text-secondary-600 mb-8 max-w-3xl mx-auto leading-relaxed opacity-0 {mounted ? 'animate-fade-in-up animation-delay-200' : ''}">
 					{m.home_hero_subtitle()}
 				</p>
 
 				<!-- CTA Buttons -->
-				<div class="flex items-center justify-center mb-12 opacity-0 {mounted ? 'animate-fade-in-up animation-delay-600' : ''}">
+				<div class="flex items-center justify-center mb-12 opacity-0 {mounted ? 'animate-fade-in-up animation-delay-400' : ''}">
 					<Button
 						href="/drafts"
 						variant="primary"
@@ -57,254 +49,215 @@
 		</div>
 	</div>
 
-	<!-- Rationale Section - Why This Tool Exists -->
-	<div class="py-20 bg-secondary-50 border-t border-secondary-200">
-		<div class="max-w-7xl mx-auto px-6">
-			<div class="text-center mb-16">
-				<h2 class="text-3xl font-semibold text-secondary-900 mb-4">
-					{m.home_rationale_title()}
-				</h2>
-				<p class="text-lg text-secondary-600 max-w-3xl mx-auto">
-					{m.home_rationale_subtitle()}
-				</p>
-			</div>
-
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-				<!-- Traceable AI Interactions -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-green-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-700 transition-colors duration-200">
-						<Icon icon="heroicons:document-check" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_traceable_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_rationale_traceable_description()}
-					</p>
-				</div>
-
-				<!-- Human-in-the-Loop Design -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-amber-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-amber-700 transition-colors duration-200">
-						<Icon icon="heroicons:users" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_human_control_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_rationale_human_control_description()}
-					</p>
-				</div>
-
-				<!-- Lower Language Barriers -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-700 transition-colors duration-200">
-						<Icon icon="heroicons:language" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_language_barrier_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_rationale_language_barrier_description()}
-					</p>
-				</div>
-
-				<!-- Scientific Integrity -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-purple-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-700 transition-colors duration-200">
-						<Icon icon="heroicons:academic-cap" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_rationale_quality_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_rationale_quality_description()}
-					</p>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Features Section -->
-	<div class="py-20 bg-white">
-		<div class="max-w-7xl mx-auto px-6">
-			<div class="text-center mb-16">
-				<span class="inline-block px-3 py-1 text-xs font-medium bg-primary-100 text-primary-800 rounded-full mb-4">
-					{m.home_features_badge()}
-				</span>
-				<h2 class="text-3xl font-semibold text-secondary-900 mb-4">
-					{m.home_features_title()}
-				</h2>
-				<p class="text-lg text-secondary-600 max-w-2xl mx-auto">
-					{m.home_features_subtitle()}
-				</p>
-			</div>
-
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-				<!-- Feature 1 -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-primary-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-primary-700 transition-colors duration-200">
-						<Icon icon="heroicons:document-plus" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_features_citations_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_features_citations_description()}
-					</p>
-				</div>
-
-				<!-- Feature 2 -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-primary-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-primary-700 transition-colors duration-200">
-						<Icon icon="heroicons:light-bulb" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_features_outline_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_features_outline_description()}
-					</p>
-				</div>
-
-				<!-- Feature 3 -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-primary-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-primary-700 transition-colors duration-200">
-						<Icon icon="heroicons:pencil" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_features_section_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_features_section_description()}
-					</p>
-				</div>
-
-				<!-- Feature 4 -->
-				<div class="group bg-white rounded-lg p-6 border border-secondary-200 hover:border-primary-200 transition-all duration-200 hover:shadow-sm">
-					<div class="w-10 h-10 bg-primary-600 text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-primary-700 transition-colors duration-200">
-						<Icon icon="heroicons:check-badge" class="w-5 h-5" />
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_features_quality_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed">
-						{m.home_features_quality_description()}
-					</p>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Process Section -->
-	<div class="py-20 bg-secondary-50 border-t border-secondary-200">
-		<div class="max-w-7xl mx-auto px-6">
-			<div class="text-center mb-16">
-				<h2 class="text-3xl font-semibold text-secondary-900 mb-4">
-					{m.home_process_title()}
-				</h2>
-				<p class="text-lg text-secondary-600 max-w-2xl mx-auto">
-					{m.home_process_subtitle()}
-				</p>
-			</div>
-
-			<div class="flex flex-col lg:flex-row items-stretch gap-8">
-				<!-- Step 1 -->
-				<div class="bg-white rounded-lg p-6 border border-secondary-200 shadow-sm flex-1 flex flex-col">
-					<div class="w-10 h-10 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-semibold text-lg mb-4">
-						1
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_process_step1_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed flex-1">
-						{m.home_process_step1_description()}
-					</p>
-				</div>
-
-				<!-- Arrow -->
-				<div class="hidden lg:flex items-center justify-center">
-					<Icon icon="heroicons:arrow-right" class="w-6 h-6 text-secondary-400" />
-				</div>
-
-				<!-- Step 2 -->
-				<div class="bg-white rounded-lg p-6 border border-secondary-200 shadow-sm flex-1 flex flex-col">
-					<div class="w-10 h-10 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-semibold text-lg mb-4">
-						2
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_process_step2_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed flex-1">
-						{m.home_process_step2_description()}
-					</p>
-				</div>
-
-				<!-- Arrow -->
-				<div class="hidden lg:flex items-center justify-center">
-					<Icon icon="heroicons:arrow-right" class="w-6 h-6 text-secondary-400" />
-				</div>
-
-				<!-- Step 3 -->
-				<div class="bg-white rounded-lg p-6 border border-secondary-200 shadow-sm flex-1 flex flex-col">
-					<div class="w-10 h-10 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-semibold text-lg mb-4">
-						3
-					</div>
-					<h3 class="text-lg font-semibold text-secondary-900 mb-2">{m.home_process_step3_title()}</h3>
-					<p class="text-secondary-600 text-sm leading-relaxed flex-1">
-						{m.home_process_step3_description()}
-					</p>
-				</div>
-			</div>
-		</div>
-	</div>
-
-
-	<!-- CTA Section -->
-	<div class="py-20 bg-primary-600 text-white">
-		<div class="max-w-7xl mx-auto px-6 text-center">
-			<h2 class="text-3xl font-semibold mb-4">
-				{m.home_cta_title()}
+	<!-- Design Rationale - Why This Tool Exists -->
+	<div class="bg-primary-50 border-b border-primary-100 py-20">
+		<div class="max-w-5xl mx-auto px-6">
+			<h2 class="text-3xl md:text-4xl font-bold text-primary-950 mb-8 tracking-tight">
+				{m.home_rationale_title()}
 			</h2>
-			<p class="text-lg mb-8 text-primary-100">
-				{m.home_cta_subtitle()}
-			</p>
-			<Button
-				href="/drafts"
-				variant="secondary"
-				size="lg"
-				class="bg-white text-primary-600 hover:bg-primary-50 shadow-sm hover:shadow-md transition-all duration-200"
-			>
-				<Icon icon="heroicons:rocket-launch" class="w-5 h-5 mr-2" />
-				{m.home_cta_button()}
-			</Button>
+			<div class="prose prose-gray max-w-none">
+				<p class="text-xl text-primary-900 leading-relaxed mb-6 font-light">
+					{m.home_rationale_intro()}
+				</p>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
+					<div class="bg-white border border-primary-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+						<h3 class="text-lg font-semibold text-primary-950 mb-3 flex items-center">
+							<span class="w-2 h-2 bg-primary-600 rounded-full mr-3"></span>
+							{m.home_rationale_traceable_title()}
+						</h3>
+						<p class="text-base text-primary-900 leading-relaxed">
+							{m.home_rationale_traceable_description()}
+						</p>
+					</div>
+
+					<div class="bg-white border border-primary-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+						<h3 class="text-lg font-semibold text-primary-950 mb-3 flex items-center">
+							<span class="w-2 h-2 bg-primary-600 rounded-full mr-3"></span>
+							{m.home_rationale_human_control_title()}
+						</h3>
+						<p class="text-base text-primary-900 leading-relaxed">
+							{m.home_rationale_human_control_description()}
+						</p>
+					</div>
+
+					<div class="bg-white border border-primary-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+						<h3 class="text-lg font-semibold text-primary-950 mb-3 flex items-center">
+							<span class="w-2 h-2 bg-primary-600 rounded-full mr-3"></span>
+							{m.home_rationale_language_barrier_title()}
+						</h3>
+						<p class="text-base text-primary-900 leading-relaxed">
+							{m.home_rationale_language_barrier_description()}
+						</p>
+					</div>
+
+					<div class="bg-white border border-primary-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+						<h3 class="text-lg font-semibold text-primary-950 mb-3 flex items-center">
+							<span class="w-2 h-2 bg-primary-600 rounded-full mr-3"></span>
+							{m.home_rationale_quality_title()}
+						</h3>
+						<p class="text-base text-primary-900 leading-relaxed">
+							{m.home_rationale_quality_description()}
+						</p>
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
+
+	<!-- How It Works - Core Section -->
+	<div id="how-it-works" class="bg-white border-b border-primary-100 py-20">
+		<div class="max-w-5xl mx-auto px-6">
+			<h2 class="text-3xl md:text-4xl font-bold text-secondary-900 mb-6 tracking-tight">
+				{m.home_how_it_works_title()}
+			</h2>
+			<p class="text-xl text-secondary-700 mb-12 leading-relaxed font-light">
+				{m.home_how_it_works_intro()}
+			</p>
+
+			<div class="space-y-10">
+				<!-- Step 1: Research Focus -->
+				<div class="border-l-4 border-primary-600 pl-8">
+					<div class="flex items-start">
+						<span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white text-base font-bold -ml-[52px] mr-6 shadow-sm">
+							1
+						</span>
+						<div>
+							<h3 class="text-xl font-bold text-secondary-800 mb-3">
+								{m.home_step1_title()}
+							</h3>
+							<p class="text-base text-secondary-700 leading-relaxed mb-4">
+								{m.home_step1_description()}
+							</p>
+							<ul class="text-sm text-secondary-600 space-y-2 list-disc list-inside ml-1">
+								<li>{m.home_step1_bullet1()}</li>
+								<li>{m.home_step1_bullet2()}</li>
+								<li>{m.home_step1_bullet3()}</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+
+				<!-- Step 2: Document & Outline -->
+				<div class="border-l-4 border-primary-600 pl-8">
+					<div class="flex items-start">
+						<span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white text-base font-bold -ml-[52px] mr-6 shadow-sm">
+							2
+						</span>
+						<div>
+							<h3 class="text-xl font-bold text-secondary-800 mb-3">
+								{m.home_step2_title()}
+							</h3>
+							<p class="text-base text-secondary-600 leading-relaxed mb-4">
+								{m.home_step2_description()}
+							</p>
+							<ul class="text-sm text-secondary-500 space-y-2 list-disc list-inside ml-1">
+								<li>{m.home_step2_bullet1()}</li>
+								<li>{m.home_step2_bullet2()}</li>
+								<li>{m.home_step2_bullet3()}</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+
+				<!-- Step 3: Section Writing -->
+				<div class="border-l-4 border-primary-600 pl-8">
+					<div class="flex items-start">
+						<span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white text-base font-bold -ml-[52px] mr-6 shadow-sm">
+							3
+						</span>
+						<div>
+							<h3 class="text-xl font-bold text-secondary-800 mb-3">
+								{m.home_step3_title()}
+							</h3>
+							<p class="text-base text-secondary-600 leading-relaxed mb-4">
+								{m.home_step3_description()}
+							</p>
+							<ul class="text-sm text-secondary-500 space-y-2 list-disc list-inside ml-1">
+								<li>{m.home_step3_bullet1()}</li>
+								<li>{m.home_step3_bullet2()}</li>
+								<li>{m.home_step3_bullet3()}</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+
+				<!-- Step 4: Review & Revise -->
+				<div class="border-l-4 border-primary-600 pl-8">
+					<div class="flex items-start">
+						<span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white text-base font-bold -ml-[52px] mr-6 shadow-sm">
+							4
+						</span>
+						<div>
+							<h3 class="text-xl font-bold text-secondary-800 mb-3">
+								{m.home_step4_title()}
+							</h3>
+							<p class="text-base text-secondary-600 leading-relaxed mb-4">
+								{m.home_step4_description()}
+							</p>
+							<ul class="text-sm text-secondary-500 space-y-2 list-disc list-inside ml-1">
+								<li>{m.home_step4_bullet1()}</li>
+								<li>{m.home_step4_bullet2()}</li>
+								<li>{m.home_step4_bullet3()}</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Key Features -->
+	<div class="bg-primary-50 border-b border-primary-100 py-20">
+		<div class="max-w-5xl mx-auto px-6">
+			<h2 class="text-3xl md:text-4xl font-bold text-primary-950 mb-10 tracking-tight">
+				{m.home_features_title()}
+			</h2>
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+				<div class="bg-white border border-primary-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+					<h3 class="text-lg font-semibold text-primary-950 mb-3">
+						{m.home_features_transparency_title()}
+					</h3>
+					<p class="text-base text-primary-900 leading-relaxed">
+						{m.home_features_transparency_description()}
+					</p>
+				</div>
+
+				<div class="bg-white border border-primary-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+					<h3 class="text-lg font-semibold text-primary-950 mb-3">
+						{m.home_features_control_title()}
+					</h3>
+					<p class="text-base text-primary-900 leading-relaxed">
+						{m.home_features_control_description()}
+					</p>
+				</div>
+
+				<div class="bg-white border border-primary-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+					<h3 class="text-lg font-semibold text-primary-950 mb-3">
+						{m.home_features_local_title()}
+					</h3>
+					<p class="text-base text-primary-900 leading-relaxed">
+						{m.home_features_local_description()}
+					</p>
+				</div>
+
+				<div class="bg-white border border-primary-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+					<h3 class="text-lg font-semibold text-primary-950 mb-3">
+						{m.home_features_export_title()}
+					</h3>
+					<p class="text-base text-primary-900 leading-relaxed">
+						{m.home_features_export_description()}
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Footer -->
+	<footer class="bg-white py-8 border-t border-primary-100">
+		<div class="max-w-5xl mx-auto px-6">
+			<div class="text-center text-sm text-secondary-500">
+				Computational Omics Laboratory at Pusan National University © 2025, all rights reserved.
+			</div>
+		</div>
+	</footer>
 </div>
-
-<style>
-	@keyframes float {
-		0%, 100% {
-			transform: translate(0px, 0px) scale(1);
-		}
-		50% {
-			transform: translate(20px, -20px) scale(1.05);
-		}
-	}
-
-	@keyframes fade-in-up {
-		0% {
-			opacity: 0;
-			transform: translateY(20px);
-		}
-		100% {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-
-	.animate-float {
-		animation: float 8s ease-in-out infinite;
-	}
-
-	.animate-fade-in-up {
-		animation: fade-in-up 0.6s ease-out forwards;
-	}
-
-	.animation-delay-200 {
-		animation-delay: 0.2s;
-	}
-
-	.animation-delay-400 {
-		animation-delay: 0.4s;
-	}
-
-	.animation-delay-600 {
-		animation-delay: 0.6s;
-	}
-
-
-	.animation-delay-2000 {
-		animation-delay: 2s;
-	}
-</style>
