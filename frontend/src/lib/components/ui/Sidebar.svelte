@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import SidebarItem from './SidebarItem.svelte';
 	import SidebarLanguageSwitcher from './SidebarLanguageSwitcher.svelte';
+	import Icon from '@iconify/svelte';
 	import * as m from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime.js';
 
@@ -75,13 +76,29 @@
 		
 		<!-- Separator -->
 		<div class="border-t border-gray-200 my-4"></div>
-		
+
 		<!-- Language Switcher -->
 		<div>
 			<SidebarLanguageSwitcher {isExpanded} />
 		</div>
-		
-		<!-- Spacer to push everything else to top -->
-		<div class="mt-auto"></div>
+
+		<!-- Spacer to push everything else to bottom -->
+		<div class="flex-1"></div>
+
+		<!-- GitHub Repository Link -->
+		<a
+			href="https://github.com/pnucolab/paper-writing-assistant"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="flex items-center gap-3 px-2 py-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors duration-200"
+			title="View on GitHub"
+		>
+			<div class="w-6 h-6 flex items-center justify-center flex-shrink-0">
+				<Icon icon="mdi:github" class="w-5 h-5" />
+			</div>
+			{#if isExpanded}
+				<span class="text-sm font-medium whitespace-nowrap">GitHub</span>
+			{/if}
+		</a>
 	</div>
 </aside>
