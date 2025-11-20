@@ -109,10 +109,6 @@
 	});
 </script>
 
-<svelte:head>
-	<title>{m.backup_page_title()}</title>
-</svelte:head>
-
 <div class="max-w-7xl mx-auto px-6 py-8">
 	<!-- Page Header -->
 	<div class="mb-8">

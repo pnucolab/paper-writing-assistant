@@ -24,6 +24,11 @@
 			icon: 'heroicons:document-text'
 		},
 		{
+			name: m.navigation_prompts(),
+			href: '/prompts',
+			icon: 'heroicons:command-line'
+		},
+		{
 			name: m.navigation_settings(),
 			href: '/settings',
 			icon: 'heroicons:cog-6-tooth'

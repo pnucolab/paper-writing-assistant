@@ -10,7 +10,7 @@
 	import MarkdownRenderer from '$lib/components/ui/MarkdownRenderer.svelte';
 	import type { Citation, CitationContext } from '$lib/stores/drafts';
 	import type { LLMClient } from '$lib/utils/llm';
-	import { getFocusStepPrompt, getInterfaceLanguageEnforcement, getFocusGenerationPrompt } from '$lib/utils/prompts';
+	import { getFocusStepPrompt, getFocusGenerationPrompt } from '$lib/utils/promptLoader';
 	
 	// i18n
 	import { m } from '$lib/paraglide/messages.js';
@@ -146,8 +146,8 @@
 				abstract: citation.abstract || 'No abstract available'
 			}));
 			
-			// Get system prompt with language enforcement
-			const baseSystemPrompt = getFocusStepPrompt(
+			// Get system prompt (now async from markdown template)
+			const systemPrompt = await getFocusStepPrompt(
 				paperType,
 				researchFocus,
 				citationsContext,
@@ -156,11 +156,6 @@
 				figureFiles,
 				supplementaryFiles
 			);
-			
-			// Add strong language enforcement to ensure AI responds in same language as UI
-			const uiLanguage = getLocale();
-			const languageEnforcement = getInterfaceLanguageEnforcement(uiLanguage, paperFormat.targetLanguage);
-			const systemPrompt = `${languageEnforcement}${baseSystemPrompt}`;
 
 			// Build conversation context for streaming
 			const conversationHistory = chatMessages.filter(m => !m.error).map(m => m.content).join('\n\n');
@@ -310,8 +305,8 @@
 				.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
 				.join('\n\n');
 			
-			// Get the focus generation prompt with proper language enforcement
-			const systemPrompt = getFocusGenerationPrompt(
+			// Get the focus generation prompt (now async from markdown template)
+			const systemPrompt = await getFocusGenerationPrompt(
 				paperFormat.paperType,
 				paperFormat.targetLength,
 				citations.length,

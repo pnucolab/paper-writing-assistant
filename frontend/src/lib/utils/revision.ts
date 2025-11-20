@@ -1,7 +1,7 @@
 // Shared AI Revision and Fact Check Utilities
 
 import { LLMClient, getLLMSettings } from './llm';
-import { getAIReviewerPrompt, getAIRevisorPrompt, getAIFactCheckPrompt } from './prompts';
+import { getAIReviewerPrompt, getAIRevisorPrompt, getAIFactCheckPrompt } from './promptLoader';
 
 export interface RevisionResult {
 	needsRevision: boolean;
@@ -23,13 +23,13 @@ export interface CustomRevisionResult {
  */
 export async function performAIRevision(
 	selectedText: string,
-	fullManuscript?: string
+	fullManuscript: string
 ): Promise<RevisionResult> {
 	const settings = getLLMSettings();
 	const llmClient = new LLMClient(settings);
 
 	// Stage 1: Reviewer Agent - Assess if revision is needed
-	const reviewerPrompt = getAIReviewerPrompt(selectedText, fullManuscript);
+	const reviewerPrompt = await getAIReviewerPrompt(selectedText, fullManuscript);
 	
 	const reviewerResponse = await llmClient.chatCompletion(
 		'You are an expert academic reviewer responsible for evaluating sections of academic documents.',
@@ -56,7 +56,7 @@ export async function performAIRevision(
 	}
 
 	// Stage 2: Revisor Agent - Perform the actual revision
-	const revisorPrompt = getAIRevisorPrompt(selectedText, reviewerResult.reason, fullManuscript);
+	const revisorPrompt = await getAIRevisorPrompt(selectedText, reviewerResult.reason, fullManuscript);
 	
 	const revisorResponse = await llmClient.chatCompletion(
 		'You are an expert academic editor and reviser focused on improving academic writing quality.',
@@ -76,15 +76,15 @@ export async function performAIRevision(
 export async function performCustomRevision(
 	textToRevise: string,
 	customInstruction: string,
-	fullManuscript?: string
+	fullManuscript: string
 ): Promise<CustomRevisionResult> {
 	const settings = getLLMSettings();
 	const llmClient = new LLMClient(settings);
-	
+
 	// Create custom revision prompt
-	const customRevisorPrompt = getAIRevisorPrompt(
-		textToRevise, 
-		`Custom user instruction: ${customInstruction}`, 
+	const customRevisorPrompt = await getAIRevisorPrompt(
+		textToRevise,
+		`Custom user instruction: ${customInstruction}`,
 		fullManuscript
 	);
 	
@@ -104,12 +104,12 @@ export async function performCustomRevision(
  */
 export async function performAIFactCheck(
 	selectedText: string,
-	fullManuscript?: string
+	fullManuscript: string
 ): Promise<FactCheckResult> {
 	const settings = getLLMSettings();
 	const llmClient = new LLMClient(settings);
-	
-	const prompt = getAIFactCheckPrompt(selectedText, fullManuscript);
+
+	const prompt = await getAIFactCheckPrompt(selectedText, fullManuscript);
 	
 	const response = await llmClient.chatCompletion(
 		'You are an expert academic fact-checker with deep knowledge of research methodologies and academic standards.',

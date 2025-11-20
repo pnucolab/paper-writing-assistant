@@ -4,13 +4,15 @@
 	import { goto } from '$app/navigation';
 	import Card from '$lib/components/ui/Card.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
+	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import Icon from '@iconify/svelte';
 	import RevisionEditor from '$lib/components/editor/RevisionEditor.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
 	import FileDrop from '$lib/components/ui/FileDrop.svelte';
 	// i18n
 	import { m } from '$lib/paraglide/messages.js';
-	import { getRevisionChatbotPrompt, getAIRevisorPrompt } from '$lib/utils/prompts';
+	import { getLocale } from '$lib/paraglide/runtime.js';
+	import { getRevisionChatbotPrompt, getAIRevisorPrompt } from '$lib/utils/promptLoader';
 	import { marked } from 'marked';
 	import { LLMClient, getLLMSettings } from '$lib/utils/llm';
 	import { generateUUID } from '$lib/utils/uuid';
@@ -73,7 +75,8 @@
 	let showImportModal = $state(false);
 	let availableDrafts = $state<Draft[]>([]);
 	let showHelpMessage = $state(false);
-	
+	let isInitialLoading = $state(true); // Loading state for initial page load
+
 	// Chatbot state
 	let showChatbotModal = $state(false);
 	let chatMessage = $state('');
@@ -244,17 +247,19 @@
 	}
 
 	// Select project
-	async function selectProject(project: RevisionProject) {
+	function selectProject(project: RevisionProject) {
+		// Batch state updates to minimize re-renders
 		selectedProject = project;
-		// TiptapEditor handles markdown directly, no need to convert
 		editorContent = project.content;
 
 		// Load chat history for this project
 		loadChatHistoryForProject(project);
 
-		// Update URL hash for bookmarking/sharing
+		// Update URL hash for bookmarking/sharing (defer to next tick)
 		if (browser) {
-			window.location.hash = project.id;
+			queueMicrotask(() => {
+				window.location.hash = project.id;
+			});
 		}
 	}
 
@@ -265,11 +270,12 @@
 			console.warn('Received non-string content from editor');
 			return;
 		}
-		
+
 		// Only update if content actually changed to prevent reactive loops
 		if (selectedProject.content !== newContent) {
 			selectedProject.content = newContent;
 			selectedProject.lastModified = new Date().toISOString();
+			editorContent = newContent;
 			saveRevisionProjects();
 		}
 	}
@@ -330,20 +336,26 @@
 	}
 
 	// Handle URL query parameters and hash for automatic project creation/opening
-	function handleUrlQuery() {
-		if (!browser) return;
-		
+	async function handleUrlQuery() {
+		if (!browser) {
+			isInitialLoading = false;
+			return;
+		}
+
 		const urlParams = new URLSearchParams(window.location.search);
 		const draftId = urlParams.get('id'); // Unified parameter for draft import
 		const projectId = window.location.hash.slice(1); // Hash for project opening
-		
+
 		if (draftId) {
 			// Try to import from draft
-			handleDraftImportFromUrl(draftId);
+			await handleDraftImportFromUrl(draftId);
 		} else if (projectId) {
 			// Try to open existing project
 			handleProjectOpenFromUrl(projectId);
 		}
+
+		// Loading complete
+		isInitialLoading = false;
 	}
 	
 	// Handle draft import from URL
@@ -421,32 +433,14 @@
 			// Get LLM settings
 			const llmConfig = getLLMSettings();
 			const llmClient = new LLMClient(llmConfig);
-			
-			// Enhanced agentic system prompt
-			const systemPrompt = `You are an agentic AI assistant helping with academic paper revisions. You can autonomously find and edit specific parts of the paper based on user requests.
 
-Current Paper: "${selectedProject.title}"
-Paper Content:
----
-${selectedProject.content}
----
-
-You have two modes of operation:
-
-1. **ANALYSIS MODE**: Provide suggestions, reviews, and recommendations
-2. **AGENTIC MODE**: When the user requests changes, you should:
-   - Identify the specific text section that needs editing
-   - Provide the exact text that should be revised
-   - Include the user's revision instruction
-   - Format your response as: "AGENTIC_EDIT: [text to revise] | INSTRUCTION: [revision instruction]"
-
-Examples of agentic requests:
-- "Make the introduction more concise"
-- "Improve the clarity of the methodology section"
-- "Fix the grammar in the conclusion"
-- "Make the abstract more engaging"
-
-When you detect an agentic request, respond with the specific text to edit and instruction in the format above. Otherwise, provide helpful suggestions and analysis.`;
+			// Get revision chatbot prompt - use editorContent for current state
+			const systemPrompt = await getRevisionChatbotPrompt(
+				userMessage,
+				selectedProject.title,
+				editorContent,
+				getLocale()
+			);
 
 			// Call the LLM with proper system/user prompt separation
 			const response = await llmClient.chatCompletion(systemPrompt, userMessage);
@@ -454,9 +448,11 @@ When you detect an agentic request, respond with the specific text to edit and i
 			// Check if the response contains an agentic edit request
 			if (response.content.includes('AGENTIC_EDIT:')) {
 				await handleAgenticEdit(response.content, userMessage);
+				// Don't add the system message to chat history - it's already handled
+				return;
 			}
 
-			// Add assistant response
+			// Add assistant response (only non-system messages)
 			chatHistory = [...chatHistory, { role: 'assistant', message: response.content }];
 			saveChatHistoryForProject();
 
@@ -500,45 +496,46 @@ When you detect an agentic request, respond with the specific text to edit and i
 			const textToRevise = editMatch[1].trim();
 			const revisionInstruction = editMatch[2].trim();
 
-			// Check if the text exists in the document
-			if (!selectedProject.content.includes(textToRevise)) {
+			// Check if the text exists in the document - use editorContent
+			if (!editorContent.includes(textToRevise)) {
 				const failureMessage = `⚠️ Could not find the specified text in the document. The text may have been paraphrased by the AI. Please try being more specific or copy the exact text you want to edit.`;
 				chatHistory = [...chatHistory, { role: 'assistant', message: failureMessage }];
 				saveChatHistoryForProject();
 				return;
 			}
 
-			// Show processing message
-			chatHistory = [...chatHistory, { role: 'assistant', message: '🔄 Processing your revision request using AI Revisor...' }];
-			saveChatHistoryForProject();
-
-			// Use performCustomRevision with the proper revision workflow
+			// Use performCustomRevision with the proper revision workflow - use editorContent
 			const revisionResult = await performCustomRevision(
 				textToRevise,
 				revisionInstruction,
-				selectedProject.content
+				editorContent
 			);
 
-			// Apply the revision to the document
-			const updatedContent = selectedProject.content.replace(textToRevise, revisionResult.revisedText);
+			// Apply the revision to the document - update both editorContent and selectedProject
+			const updatedContent = editorContent.replace(textToRevise, revisionResult.revisedText);
+			editorContent = updatedContent;
 			selectedProject.content = updatedContent;
 			selectedProject.lastModified = new Date().toISOString();
 			saveRevisionProjects();
 
-			// Add success message with details
-			const successMessage = `✅ **Revision Applied Successfully!**
+			// Generate a conversational follow-up response from the LLM
+			const llmConfig = getLLMSettings();
+			const llmClient = new LLMClient(llmConfig);
 
-**Original Text:**
-${textToRevise}
+			// Use the revision chatbot prompt again for the follow-up to ensure language consistency
+			const followUpSystemPrompt = await getRevisionChatbotPrompt(
+				`[SYSTEM: The revision has been successfully applied. Now provide a brief, conversational response (1-2 sentences) that summarizes what was changed, without showing the before/after text.]`,
+				selectedProject.title,
+				editorContent,
+				getLocale()
+			);
 
-**Revised Text:**
-${revisionResult.revisedText}
+			const followUpResponse = await llmClient.chatCompletion(
+				followUpSystemPrompt,
+				`I asked you to: "${originalUserMessage}". You applied this revision: ${revisionInstruction}. Please acknowledge this briefly and naturally.`
+			);
 
-**Revision Instruction:** ${revisionInstruction}
-
-The document has been updated automatically.`;
-
-			chatHistory = [...chatHistory, { role: 'assistant', message: successMessage }];
+			chatHistory = [...chatHistory, { role: 'assistant', message: followUpResponse.content }];
 			saveChatHistoryForProject();
 
 		} catch (error) {
@@ -572,33 +569,48 @@ The document has been updated automatically.`;
 		saveRevisionProjects();
 	}
 
+	// Clear chat history for selected project
+	function clearChatHistory() {
+		if (!selectedProject) return;
+
+		chatHistory = [
+			{ role: 'assistant', message: m.chatbot_welcome() }
+		];
+		saveChatHistoryForProject();
+	}
+
 	// Initialize on mount
-	onMount(() => {
-		loadRevisionProjects();
-		loadAvailableDrafts();
-		
-		// Check if help message should be shown for first-time visitors
+	onMount(async () => {
+		// Check help message first (no DOM operations)
 		const hasSeenHelp = localStorage.getItem('revisions-help-dismissed');
 		if (!hasSeenHelp) {
 			showHelpMessage = true;
 		}
-		
-		// Handle URL query parameters after loading data
-		setTimeout(() => {
-			handleUrlQuery();
-		}, 100);
+
+		// Load data synchronously
+		loadRevisionProjects();
+		loadAvailableDrafts();
+
+		// Handle URL query and wait for completion before showing page
+		await handleUrlQuery();
 	});
 </script>
 
-<div class="max-w-7xl mx-auto px-6 py-8">
-	<!-- Page Header -->
-	<div class="mb-8">
-		<h1 class="text-3xl font-semibold text-gray-900 mb-2">{m.revisions_page_title()}</h1>
-		<p class="text-gray-600">{m.revisions_page_description()}</p>
+{#if isInitialLoading}
+	<!-- Full page loading spinner -->
+	<div class="flex items-center justify-center min-h-screen bg-gray-50">
+		<Spinner size="xl" class="text-gray-400" />
 	</div>
+{:else}
+	<div class="max-w-7xl mx-auto px-6 py-8">
+		<!-- Page Header -->
+		<div class="mb-8">
+			<h1 class="text-3xl font-semibold text-gray-900 mb-2">{m.revisions_page_title()}</h1>
+			<p class="text-gray-600">{m.revisions_page_description()}</p>
+		</div>
 
 
-	<div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+		<div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
 		<!-- Sidebar: Revisions List -->
 		<div class="lg:col-span-1">
 			<Card>
@@ -702,14 +714,24 @@ The document has been updated automatically.`;
 				<div class="space-y-4">
 					<div class="flex items-center justify-between">
 						<h2 class="text-lg font-semibold text-gray-900">{m.chatbot_title()}</h2>
-						<button
-							onclick={openChatbotModal}
-							disabled={!selectedProject}
-							class="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-							title={m.chatbot_maximize()}
-						>
-							<Icon icon="heroicons:arrows-pointing-out" class="w-4 h-4" />
-						</button>
+						<div class="flex items-center gap-1">
+							<button
+								onclick={clearChatHistory}
+								disabled={!selectedProject}
+								class="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+								title={m.chatbot_clear()}
+							>
+								<Icon icon="heroicons:trash" class="w-4 h-4" />
+							</button>
+							<button
+								onclick={openChatbotModal}
+								disabled={!selectedProject}
+								class="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+								title={m.chatbot_maximize()}
+							>
+								<Icon icon="heroicons:arrows-pointing-out" class="w-4 h-4" />
+							</button>
+						</div>
 					</div>
 
 					<!-- Chat Messages -->
@@ -1030,3 +1052,4 @@ The document has been updated automatically.`;
 		{/if}
 	{/snippet}
 </Modal>
+{/if}

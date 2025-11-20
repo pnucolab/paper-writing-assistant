@@ -66,6 +66,7 @@
 		"jspdf": "^3.0.1",
 		"katex": "^0.16.22",
 		"lowlight": "^3.3.0",
+		"lucide-svelte": "^0.554.0",
 		"mammoth": "^1.10.0",
 		"marked": "^16.1.2",
 		"mdast2docx": "^1.4.1",

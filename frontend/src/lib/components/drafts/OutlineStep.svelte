@@ -14,13 +14,11 @@
     import { getLocale } from '$lib/paraglide/runtime.js';
 
     import type { WorkflowStep, Citation, CitationContext } from '$lib/stores/drafts';
-	import { 
-		getTitleGenerationPrompt, 
-		getOutlineGenerationPrompt, 
-		getKeyPointsAndReferencesGenerationPrompt,
-		getTargetLanguageEnforcement,
-		getInterfaceLanguageEnforcement
-	} from '$lib/utils/prompts';
+	import {
+		getTitleGenerationPrompt,
+		getOutlineGenerationPrompt,
+		getKeyPointsAndReferencesGenerationPrompt
+	} from '$lib/utils/promptLoader';
 	import type { LLMClient } from '$lib/utils/llm';
 
     // Props
@@ -153,13 +151,8 @@
 		generatingTitle = true;
 		suggestedTitles = []; // Clear existing suggestions when regenerating
 		try {
-			// Get base system prompt
-			const baseSystemPrompt = getTitleGenerationPrompt(paperType, citationsContext, researchFocus);
-			
-			// Add target language enforcement for title generation (different from interface language)
-			const targetLanguageRequirement = getTargetLanguageEnforcement(targetLanguage);
-
-			const systemPrompt = `${targetLanguageRequirement}${baseSystemPrompt}`;
+			// Get system prompt (now async from markdown template)
+			const systemPrompt = await getTitleGenerationPrompt(paperType, citationsContext, researchFocus);
 			
 			const userPrompt = targetLanguage !== 'English' 
 				? `Generate 5 diverse academic paper titles in ${targetLanguage} based on the provided literature.`
@@ -221,7 +214,7 @@
 				citations: []
 			}));
 
-			const systemPrompt = getOutlineGenerationPrompt(paperType, targetLength, citationsContext, sectionsContext, researchFocus, targetLanguage);
+			const systemPrompt = await getOutlineGenerationPrompt(paperType, targetLength, citationsContext, sectionsContext, researchFocus, targetLanguage);
 			const userPrompt = `Generate an appropriate section structure for a ${paperType} paper based on the provided literature.`;
 
 			interface OutlineResponse {
@@ -453,12 +446,7 @@
 		try {
 			// Use the unified prompt for all sections (including Abstract)
 			const allSectionTitles = paperOutline.map(s => s.title);
-			const baseSystemPrompt = getKeyPointsAndReferencesGenerationPrompt(section.title, paperType, section.wordCount, citationsContext, allSectionTitles, researchFocus, figureFiles, supplementaryFiles);
-			
-			// Add strong language enforcement for key points generation (interface language, NOT target language)
-			const uiLanguage = getLocale();
-			const interfaceLanguageRequirement = getInterfaceLanguageEnforcement(uiLanguage, targetLanguage);
-			const systemPrompt = `${interfaceLanguageRequirement}${baseSystemPrompt}`;
+			const systemPrompt = await getKeyPointsAndReferencesGenerationPrompt(section.title, paperType, section.wordCount, citationsContext, allSectionTitles, researchFocus, figureFiles, supplementaryFiles);
 
 			const userPrompt = `Generate key points and suggest relevant citations for the "${section.title}" section of a ${paperType} paper.`;
 

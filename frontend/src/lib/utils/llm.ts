@@ -138,6 +138,43 @@ export class LLMClient {
 		};
 	}
 
+	// File-enabled chat completion for document analysis
+	async fileCompletion(prompt: string, fileDataUri: string, filename: string, options?: any): Promise<{ content: string }> {
+		const response = await this.client.chat.completions.create({
+			model: this.config.modelName,
+			messages: [
+				{
+					role: 'user',
+					content: [
+						{
+							type: 'text',
+							text: prompt
+						},
+						{
+							type: 'file' as any,
+							file: {
+								filename: filename,
+								file_data: fileDataUri
+							}
+						}
+					] as any
+				}
+			],
+			temperature: options?.temperature ?? this.config.temperature,
+			max_tokens: options?.maxTokens ?? this.config.maxTokens,
+			...options
+		});
+
+		const content = response.choices[0]?.message?.content;
+		if (!content) {
+			throw new Error('No content received from file model response');
+		}
+
+		return {
+			content: content
+		};
+	}
+
 	// JSON parsing wrapper around chatCompletion
 	async chatCompletionJSON<T = any>(systemPrompt: string, userPrompt: string, options?: any): Promise<T> {
 		const result = await this.chatCompletion(systemPrompt, userPrompt, options);

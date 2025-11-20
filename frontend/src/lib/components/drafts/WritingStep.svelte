@@ -11,7 +11,7 @@
     import { m } from '$lib/paraglide/messages.js';
 
     import type { Citation, CitationContext } from '$lib/stores/drafts';
-	import { getSectionWritingPrompt, getFigureLegendsPrompt, getAIReviewerPrompt, getAIRevisorPrompt } from '$lib/utils/prompts';
+	import { getSectionWritingPrompt, getFigureLegendsPrompt, getAIReviewerPrompt, getAIRevisorPrompt } from '$lib/utils/promptLoader';
 	import { generateReferencesSection } from '$lib/utils/citations';
 	import type { LLMClient } from '$lib/utils/llm';
 	import { getUnifiedSettings } from '$lib/stores/settings';
@@ -151,7 +151,7 @@
 				abstract: citation.abstract || 'No abstract available'
 			}));
 
-			const sectionSystemPrompt = getSectionWritingPrompt(
+			const sectionSystemPrompt = await getSectionWritingPrompt(
 				paperTitle,
 				paperType,
 				section.title,
@@ -215,7 +215,7 @@
 
 		try {
 			// Generate AI-powered figure legends
-			const systemPrompt = getFigureLegendsPrompt(figureFiles, targetLanguage);
+			const systemPrompt = await getFigureLegendsPrompt(figureFiles, targetLanguage);
 			const userPrompt = `Generate professional academic figure legends for the ${figuresWithSummary.length} provided figures.`;
 
 			let legendsContent = '';

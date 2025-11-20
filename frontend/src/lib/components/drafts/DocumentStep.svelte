@@ -22,9 +22,10 @@
 	
 	// LLM and file processing
 	import { LLMClient, getLLMSettings } from '$lib/utils/llm';
-	import { getDocumentSummaryPrompt, getImageSummaryPrompt, getCodeSummaryPrompt } from '$lib/utils/prompts';
+	import { getFileSummaryPrompt, getImageSummaryPrompt } from '$lib/utils/promptLoader';
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import { generateUUID } from '$lib/utils/uuid';
+	import { marked } from 'marked';
 
     import type { Citation } from '$lib/stores/drafts';
 
@@ -484,8 +485,8 @@
 			if (file.type.startsWith('image/')) {
 				// For images, use vision-capable LLM
 				const imageBase64 = await fileToBase64(file);
-				const prompt = getImageSummaryPrompt(file.name, getLocale());
-				
+				const prompt = await getImageSummaryPrompt(getLocale());
+
 				// Call vision-enabled LLM
 				const response = await llmClient.visionCompletion(prompt, imageBase64);
 				
@@ -508,18 +509,14 @@
 				return;
 			}
 			
-			// Read text-based files
-			const content = await readFileContent(file);
-			
-			// Determine file type and create appropriate prompt
-			if (isCodeFile(file.name)) {
-				prompt = getCodeSummaryPrompt(file.name, file.type, content, getLocale());
-			} else {
-				prompt = getDocumentSummaryPrompt(file.name, file.type, content, getLocale());
-			}
-			
-			// Call LLM for summarization
-			const response = await llmClient.chatCompletion(systemPrompt, prompt);
+			// Convert file to base64 for attachment
+			const fileBase64 = await fileToBase64(file);
+
+			// Use unified file summary prompt
+			const promptText = await getFileSummaryPrompt(getLocale());
+
+			// Call LLM for summarization with file attachment
+			const response = await llmClient.fileCompletion(promptText, fileBase64, file.name);
 			
 			// Update the file data with summary in the correct array
 			if (fileCategory === 'figure') {
@@ -859,7 +856,9 @@
                                             </div>
                                             <div class="flex-1 text-sm text-secondary-700">
                                                 <p class="font-medium text-secondary-900 mb-1">{m.documents_summary_label()}</p>
-                                                <p>{file.summary}</p>
+                                                <div class="prose prose-sm max-w-none">
+                                                    {@html marked(file.summary)}
+                                                </div>
                                             </div>
                                         </div>
                                     {:else}
@@ -932,7 +931,9 @@
                                     {:else if file.summary}
                                         <div class="text-sm text-secondary-700">
                                             <p class="font-medium text-secondary-900 mb-1">{m.documents_summary_label()}</p>
-                                            <p>{file.summary}</p>
+                                            <div class="prose prose-sm max-w-none">
+                                                {@html marked(file.summary)}
+                                            </div>
                                         </div>
                                     {:else}
                                         <p class="text-sm text-secondary-500 italic">{m.documents_no_summary()}</p>
