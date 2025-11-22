@@ -57,11 +57,13 @@ export class LLMClient {
 			...options
 		});
 
+		// Extract only content, ignoring thinking messages from reasoning models (e.g., GPT o1)
+		// message.thinking is automatically ignored by only accessing message.content
 		const content = response.choices[0]?.message?.content;
 		if (!content) {
 			throw new Error('No content received from LLM response');
 		}
-		
+
 		return {
 			content: content
 		};
@@ -69,8 +71,8 @@ export class LLMClient {
 
 	// Streaming chat completion
 	async chatCompletionStream(
-		systemPrompt: string, 
-		userPrompt: string, 
+		systemPrompt: string,
+		userPrompt: string,
 		onChunk: (chunk: string) => void,
 		options?: any
 	): Promise<string> {
@@ -88,13 +90,24 @@ export class LLMClient {
 
 		let fullContent = '';
 		for await (const chunk of stream) {
-			const content = chunk.choices[0]?.delta?.content;
+			const delta = chunk.choices[0]?.delta;
+			if (!delta) continue;
+
+			// Skip thinking messages from reasoning models (e.g., GPT o1)
+			// Thinking messages may have delta.thinking instead of delta.content
+			// or may have a type indicator
+			if (delta.thinking) {
+				// This is a thinking chunk, skip it
+				continue;
+			}
+
+			const content = delta.content;
 			if (content) {
 				fullContent += content;
 				onChunk(content);
 			}
 		}
-		
+
 		if (!fullContent) {
 			throw new Error('No content received from LLM streaming response');
 		}
@@ -128,6 +141,7 @@ export class LLMClient {
 			...options
 		});
 
+		// Extract only content, ignoring thinking messages from reasoning models
 		const content = response.choices[0]?.message?.content;
 		if (!content) {
 			throw new Error('No content received from vision model response');
@@ -165,6 +179,7 @@ export class LLMClient {
 			...options
 		});
 
+		// Extract only content, ignoring thinking messages from reasoning models
 		const content = response.choices[0]?.message?.content;
 		if (!content) {
 			throw new Error('No content received from file model response');
