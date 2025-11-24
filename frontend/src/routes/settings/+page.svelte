@@ -111,9 +111,9 @@
 
 	// Featured model IDs
 	const featuredModelIds = [
-		'openai/gpt-5',
-		'anthropic/claude-sonnet-4',
-		'google/gemini-2.5-pro',
+		'openai/gpt-5.1',
+		'anthropic/claude-sonnet-4.5',
+		'google/gemini-3-pro-preview',
 	];
 
 	// LLM models from OpenRouter
