@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Button from '$lib/components/ui/Button.svelte';
+	import Footer from '$lib/components/ui/Footer.svelte';
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import * as m from '$lib/paraglide/messages.js';
@@ -108,14 +109,5 @@
 		</div>
 	</div>
 
-	<!-- Footer -->
-	<footer class="bg-white py-8 border-t border-secondary-200">
-		<div class="max-w-5xl mx-auto px-6">
-			<div class="text-center text-sm text-secondary-500">
-				<a href="https://pnucolab.com/" target="_blank" rel="noopener noreferrer" class="hover:text-primary-600 transition-colors">
-					{m.main_footer_org()}
-				</a> © 2025, all rights reserved.
-			</div>
-		</div>
-	</footer>
+	<Footer />
 </div>
