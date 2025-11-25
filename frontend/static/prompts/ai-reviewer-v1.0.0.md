@@ -15,8 +15,6 @@ To provide coherent assessment that considers the overall document, you have acc
 ### FULL DOCUMENT FOR CONTEXT
 {{fullManuscript}}
 
----
-
 Primary Task: You will analyze the section provided below and determine whether it needs revision. Your response must be in the exact format specified.
 
 CRITICAL INSTRUCTIONS:
