@@ -1,9 +1,11 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import Navbar from '$lib/components/ui/Navbar.svelte';
 	import Sidebar from '$lib/components/ui/Sidebar.svelte';
 	import { onMount } from 'svelte';
 	import { setLocale } from '$lib/paraglide/runtime.js';
+	import { page } from '$app/stores';
 
 	let { children } = $props();
 
@@ -35,6 +37,9 @@
 			setLocale(savedLocale as any);
 		}
 	});
+
+	// Show sidebar only for /spwa routes
+	let showSidebar = $derived($page.url.pathname.startsWith('/spwa'));
 </script>
 
 <svelte:head>
@@ -42,9 +47,12 @@
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50">
-	<Sidebar />
-	
-	<main class="transition-all duration-300 ml-14">
+	<Navbar />
+	{#if showSidebar}
+		<Sidebar />
+	{/if}
+
+	<main class="transition-all duration-300 pt-14" class:ml-14={showSidebar}>
 		{@render children?.()}
 	</main>
 </div>

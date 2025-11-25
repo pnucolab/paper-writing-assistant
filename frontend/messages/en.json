@@ -743,5 +743,22 @@
 	"prompts_category_revision": "Review & Revision",
 	"prompts_category_file_processing": "File Processing",
 	"prompts_used_in": "Used in",
-	"loading": "Loading..."
+	"loading": "Loading...",
+	"main_title": "COLab Tools",
+	"main_subtitle": "AI-Assisted Research Tools",
+	"main_description": "A suite of transparent, human-centered AI tools designed to support researchers throughout their academic journey.",
+	"main_tools_title": "Available Tools",
+	"main_tool_spwa_name": "Scientific Paper Writing Assistant",
+	"main_tool_spwa_description": "AI-powered assistant for writing research papers with full transparency and human control. Features step-by-step guidance, citation management, and comprehensive interaction logging.",
+	"main_tool_courier_name": "Paper Courier",
+	"main_tool_courier_description": "Coming soon. A tool to help researchers discover, organize, and share academic papers efficiently.",
+	"main_tool_open": "Open Tool",
+	"main_tool_coming_soon": "Coming Soon",
+	"main_about_title": "About COLab Tools",
+	"main_about_description": "COLab Tools is a collection of AI-assisted applications designed to support academic research while maintaining full transparency and human control. Each tool is built with the following principles:",
+	"main_about_privacy": "Privacy First:",
+	"main_about_privacy_description": "All data is stored locally in your browser",
+	"main_about_opensource": "Open Source:",
+	"main_about_opensource_description": "The tools are open source and available for inspection and contribution",
+	"main_footer_org": "Computational Omics Laboratory at Pusan National University"
 }

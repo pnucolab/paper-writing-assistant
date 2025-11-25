@@ -743,5 +743,22 @@
 	"prompts_category_revision": "검토 및 수정",
 	"prompts_category_file_processing": "파일 처리",
 	"prompts_used_in": "사용 위치",
-	"loading": "로딩 중..."
+	"loading": "로딩 중...",
+	"main_title": "COLab Tools",
+	"main_subtitle": "AI 기반 연구 도구",
+	"main_description": "연구자의 학술 여정 전반을 지원하기 위해 설계된 투명하고 인간 중심적인 AI 도구 모음입니다.",
+	"main_tools_title": "사용 가능한 도구",
+	"main_tool_spwa_name": "과학 논문 작성 도우미",
+	"main_tool_spwa_description": "완전한 투명성과 인간 통제를 갖춘 AI 기반 연구 논문 작성 도우미입니다. 단계별 안내, 인용 관리, 포괄적인 상호작용 로깅 기능을 제공합니다.",
+	"main_tool_courier_name": "Paper Courier",
+	"main_tool_courier_description": "곧 출시 예정. 연구자가 학술 논문을 발견하고, 정리하고, 공유하는 데 도움을 주는 도구입니다.",
+	"main_tool_open": "도구 열기",
+	"main_tool_coming_soon": "곧 출시",
+	"main_about_title": "COLab Tools 소개",
+	"main_about_description": "COLab Tools는 완전한 투명성과 인간 통제를 유지하면서 학술 연구를 지원하도록 설계된 AI 지원 애플리케이션 모음입니다. 각 도구는 다음 원칙에 따라 구축되었습니다:",
+	"main_about_privacy": "프라이버시 최우선:",
+	"main_about_privacy_description": "모든 데이터는 브라우저에 로컬로 저장됩니다",
+	"main_about_opensource": "오픈 소스:",
+	"main_about_opensource_description": "도구는 오픈 소스이며 검토 및 기여가 가능합니다",
+	"main_footer_org": "Computational Omics Laboratory at Pusan National University"
 }

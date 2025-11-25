@@ -223,7 +223,7 @@
 		const draft = drafts.find(d => d.id === draftId);
 		if (!draft) {
 			// Draft not found, redirect to drafts list
-			goto('/drafts');
+			goto('/spwa/drafts');
 			return;
 		}
 		
@@ -299,7 +299,7 @@
 		<!-- Draft Header -->
 		<div class="mb-6">
 			<div class="flex items-center space-x-2 text-sm text-secondary-600 mb-2">
-				<a href="/drafts" class="hover:text-primary-600">← {m.drafts_back_to_list()}</a>
+				<a href="/spwa/drafts" class="hover:text-primary-600">← {m.drafts_back_to_list()}</a>
 				<span>•</span>
 				<span>{currentDraft.projectTitle}</span>
 			</div>
@@ -370,7 +370,7 @@
 		<div class="text-center">
 			<h1 class="text-2xl font-semibold text-secondary-900 mb-4">Draft not found</h1>
 			<p class="text-secondary-600 mb-6">The draft you're looking for doesn't exist.</p>
-			<a href="/drafts" class="text-primary-600 hover:text-primary-700">← Back to drafts</a>
+			<a href="/spwa/drafts" class="text-primary-600 hover:text-primary-700">← Back to drafts</a>
 		</div>
 	</div>
 {/if}
