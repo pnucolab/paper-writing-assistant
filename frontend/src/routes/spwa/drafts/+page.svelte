@@ -218,7 +218,7 @@
 									{m.llm_config_warning_description()}
 								</p>
 								<Button
-									href="/settings"
+									href="/spwa/settings"
 									variant="secondary"
 									size="sm"
 									iconLeft="heroicons:cog-6-tooth"
