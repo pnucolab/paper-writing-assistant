@@ -21,6 +21,13 @@ export interface LLMConfig {
 	maxTokens: number;
 }
 
+// Web search plugin configuration
+export interface WebSearchOptions {
+	enabled: boolean;
+	maxResults?: number;
+	searchPrompt?: string;
+}
+
 // LLM Client class for managing OpenAI-compatible clients
 export class LLMClient {
 	private client: OpenAI;
@@ -61,7 +68,55 @@ export class LLMClient {
 		if (!content) {
 			throw new Error('No content received from LLM response');
 		}
-		
+
+		return {
+			content: content
+		};
+	}
+
+	// Chat completion with web search (OpenRouter only)
+	async chatCompletionWithWebSearch(
+		systemPrompt: string,
+		userPrompt: string,
+		webSearchOptions: WebSearchOptions,
+		options?: any
+	): Promise<{ content: string }> {
+		if (this.config.provider !== 'openrouter') {
+			// Fall back to regular chat completion for non-OpenRouter providers
+			console.warn('Web search is only supported with OpenRouter. Falling back to regular chat completion.');
+			return this.chatCompletion(systemPrompt, userPrompt, options);
+		}
+
+		// Build plugins array for web search
+		const plugins: any[] = [];
+		if (webSearchOptions.enabled) {
+			const webPlugin: any = { id: 'web' };
+			if (webSearchOptions.maxResults) {
+				webPlugin.max_results = webSearchOptions.maxResults;
+			}
+			if (webSearchOptions.searchPrompt) {
+				webPlugin.search_prompt = webSearchOptions.searchPrompt;
+			}
+			plugins.push(webPlugin);
+		}
+
+		const response = await this.client.chat.completions.create({
+			model: this.config.modelName,
+			messages: [
+				{ role: 'system', content: systemPrompt },
+				{ role: 'user', content: userPrompt }
+			],
+			temperature: options?.temperature ?? this.config.temperature,
+			max_tokens: options?.maxTokens ?? this.config.maxTokens,
+			plugins: plugins,
+			...options
+		} as any);
+
+		const content = response.choices[0]?.message?.content;
+		if (!content) {
+			throw new Error('No content received from LLM response');
+		}
+
 		return {
 			content: content
 		};

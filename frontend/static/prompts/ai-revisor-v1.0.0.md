@@ -16,8 +16,6 @@ To provide coherent revisions that align with the overall document, you have acc
 ### FULL DOCUMENT FOR CONTEXT
 {{fullManuscript}}
 
----
-
 REVIEWER ASSESSMENT:
 The reviewer identified the following specific issues with this section that MUST be addressed in your revision:
 {{reviewerReason}}
@@ -27,8 +25,6 @@ CRITICAL: You must directly address each specific issue mentioned by the reviewe
 MAJOR PRIORITY: If the reviewer identifies robotic, AI-generated, or overly formal language patterns, you must completely rewrite those sections to sound natural and human-like while maintaining academic standards. This is a PRIMARY concern that must be addressed thoroughly.
 
 Your revision will be evaluated based on how well it addresses these specific concerns, with natural writing style being of utmost importance.
-
----
 
 Primary Task: Your task is to perform a complete revision of the section provided below. Your sole output will be the rewritten, polished text of that entire section.
 

@@ -1,6 +1,6 @@
 // Shared AI Revision and Fact Check Utilities
 
-import { LLMClient, getLLMSettings } from './llm';
+import { LLMClient, getLLMSettings, type WebSearchOptions } from './llm';
 import { getAIReviewerPrompt, getAIRevisorPrompt, getAIFactCheckPrompt } from './promptLoader';
 
 export interface RevisionResult {
@@ -30,11 +30,8 @@ export async function performAIRevision(
 
 	// Stage 1: Reviewer Agent - Assess if revision is needed
 	const reviewerPrompt = await getAIReviewerPrompt(selectedText, fullManuscript);
-	
-	const reviewerResponse = await llmClient.chatCompletion(
-		'You are an expert academic reviewer responsible for evaluating sections of academic documents.',
-		reviewerPrompt
-	);
+
+	const reviewerResponse = await llmClient.chatCompletion('', reviewerPrompt);
 	
 	// Parse reviewer response
 	let reviewerResult;
@@ -57,12 +54,9 @@ export async function performAIRevision(
 
 	// Stage 2: Revisor Agent - Perform the actual revision
 	const revisorPrompt = await getAIRevisorPrompt(selectedText, reviewerResult.reason, fullManuscript);
-	
-	const revisorResponse = await llmClient.chatCompletion(
-		'You are an expert academic editor and reviser focused on improving academic writing quality.',
-		revisorPrompt
-	);
-	
+
+	const revisorResponse = await llmClient.chatCompletion('', revisorPrompt);
+
 	return {
 		needsRevision: true,
 		reason: reviewerResult.reason,
@@ -87,12 +81,9 @@ export async function performCustomRevision(
 		`Custom user instruction: ${customInstruction}`,
 		fullManuscript
 	);
-	
-	const customResponse = await llmClient.chatCompletion(
-		'You are an expert academic editor and reviser focused on implementing specific user instructions.',
-		customRevisorPrompt
-	);
-	
+
+	const customResponse = await llmClient.chatCompletion('', customRevisorPrompt);
+
 	return {
 		revisedText: customResponse.content,
 		reviewerAssessment: `Custom revision requested: "${customInstruction}"`
@@ -100,7 +91,7 @@ export async function performCustomRevision(
 }
 
 /**
- * Performs AI fact checking
+ * Performs AI fact checking with web search
  */
 export async function performAIFactCheck(
 	selectedText: string,
@@ -110,12 +101,16 @@ export async function performAIFactCheck(
 	const llmClient = new LLMClient(settings);
 
 	const prompt = await getAIFactCheckPrompt(selectedText, fullManuscript);
-	
-	const response = await llmClient.chatCompletion(
-		'You are an expert academic fact-checker with deep knowledge of research methodologies and academic standards.',
-		prompt
-	);
-	
+
+	// Use web search for fact checking to verify claims against current information
+	const webSearchOptions: WebSearchOptions = {
+		enabled: true,
+		maxResults: 10,
+		searchPrompt: 'Use the following web search results to verify factual claims and provide evidence-based analysis. Cite sources using markdown links when referencing specific information from the search results.'
+	};
+
+	const response = await llmClient.chatCompletionWithWebSearch('', prompt, webSearchOptions);
+
 	return {
 		analysis: response.content
 	};

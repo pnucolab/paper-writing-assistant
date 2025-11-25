@@ -9,7 +9,7 @@
     import { WandSparkles, SearchCheck } from '@lucide/svelte';
     import { performCustomRevision, performAIFactCheck, createWordDiff } from '$lib/utils/revision';
     import '$lib/utils/wikeddiff.js';
-    import { marked } from 'marked';
+    import MarkdownRenderer from '$lib/components/ui/MarkdownRenderer.svelte';
 
     interface Props {
         initialContent?: Content;
@@ -334,9 +334,7 @@
                     <span class="text-gray-500">Analyzing content for factual accuracy...</span>
                 </div>
             {:else}
-                <div class="prose prose-sm max-w-none">
-                    {@html marked(factCheckResult)}
-                </div>
+                <MarkdownRenderer content={factCheckResult} class="text-sm" />
             {/if}
             
             <div class="flex justify-end pt-4">
