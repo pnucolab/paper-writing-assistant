@@ -94,7 +94,7 @@
 
 			// Close modal and navigate
 			showCreateModal = false;
-			await goto(`/drafts/new-paper?id=${newDraft.id}`);
+			await goto(`/spwa/drafts/new-paper?id=${newDraft.id}`);
 		} catch (error) {
 			console.error('Failed to create draft:', error);
 			alert('Failed to create new draft');
@@ -109,7 +109,7 @@
 
 	async function openDraft(draft: Draft) {
 		// Navigate to the draft's current step using new-paper page
-		await goto(`/drafts/new-paper?id=${draft.id}#${draft.currentStep}`);
+		await goto(`/spwa/drafts/new-paper?id=${draft.id}#${draft.currentStep}`);
 	}
 
 	function deleteDraft(draft: Draft) {
